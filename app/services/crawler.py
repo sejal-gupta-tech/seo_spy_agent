@@ -148,10 +148,15 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
             for heading in soup.find_all(tag_name)
         ]
 
-    canonical_tag = soup.find("link", rel=lambda value: value and "canonical" in value.lower())
+    canonical_tag = soup.find("link", rel=lambda value: value and "canonical" in str(value).lower())
     canonical_href = ""
     if canonical_tag and canonical_tag.get("href"):
         canonical_href = normalize_crawl_url(urljoin(final_url, canonical_tag["href"]))
+
+    favicon_tag = soup.find("link", rel=lambda value: value and "icon" in str(value).lower())
+    favicon_href = ""
+    if favicon_tag and favicon_tag.get("href"):
+        favicon_href = normalize_crawl_url(urljoin(final_url, favicon_tag["href"]))
 
     images = soup.find_all("img")
     missing_alt_images = [
@@ -161,7 +166,12 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     ]
 
     internal_links = []
+    internal_link_anchors = []
+    internal_link_targets = []
     external_links = []
+    external_domains_set = set()
+    dofollow_links = 0
+    nofollow_links = 0
     seen_links = set()
 
     for anchor in soup.find_all("a", href=True):
@@ -172,6 +182,12 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
         if parsed_href.scheme not in {"http", "https"}:
             continue
 
+        rel_attr = anchor.get("rel", [])
+        if "nofollow" in str(rel_attr).lower():
+            nofollow_links += 1
+        else:
+            dofollow_links += 1
+
         if normalized_href in seen_links:
             continue
 
@@ -179,8 +195,14 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
 
         if _same_domain(base_domain, normalized_href):
             internal_links.append(normalized_href)
+            internal_link_targets.append(normalized_href)
+            anchor_text = anchor.get_text(separator=" ", strip=True)
+            if anchor_text and anchor_text not in internal_link_anchors:
+                internal_link_anchors.append(anchor_text)
         else:
             external_links.append(normalized_href)
+            if parsed_href.netloc:
+                external_domains_set.add(parsed_href.netloc)
 
     open_graph_tags = soup.find_all(
         "meta",
@@ -202,6 +224,8 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
         "meta_description_length": len(description),
         "canonical_url": canonical_href,
         "has_canonical": bool(canonical_href),
+        "favicon_url": favicon_href,
+        "has_favicon": bool(favicon_href),
         "has_viewport_meta": bool(viewport_content),
         "robots_directives": robots_directives,
         "is_indexable": "noindex" not in robots_directives,
@@ -213,7 +237,12 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
         "internal_links_count": len(internal_links),
         "external_links_count": len(external_links),
         "internal_links": internal_links,
+        "internal_link_anchors": internal_link_anchors,
+        "internal_link_targets": internal_link_targets,
         "external_links": external_links,
+        "external_domains": list(external_domains_set),
+        "dofollow_links": dofollow_links,
+        "nofollow_links": nofollow_links,
         "has_open_graph": bool(open_graph_tags),
         "has_twitter_card": bool(twitter_tags),
         "has_structured_data": bool(structured_data_types),
@@ -230,6 +259,7 @@ async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str)
             "status_code": response.status_code,
             "exists": response.status_code == 200,
             "body": response.text if response.status_code == 200 else "",
+            "status_string": f"Found (/{response.status_code})" if response.status_code == 200 else "Missing"
         }
     except Exception as exc:
         return {
@@ -237,7 +267,92 @@ async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str)
             "status_code": 0,
             "exists": False,
             "body": "",
+            "status_string": "Missing",
             "error": str(exc),
+        }
+
+async def _fetch_robots_txt(client: httpx.AsyncClient, target_url: str) -> dict:
+    try:
+        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
+        content_type = response.headers.get("content-type", "").lower()
+        body = response.text
+        
+        final_url_path = urlparse(str(response.url)).path
+        if final_url_path == "" or final_url_path == "/":
+            status = "Invalid (Redirected to homepage)"
+            exists = False
+        elif response.status_code != 200:
+            status = "Missing"
+            exists = False
+        elif not body.strip():
+            status = "Invalid (Empty response)"
+            exists = False
+        elif "text/html" in content_type or "<html" in body.lower():
+            status = "Invalid (HTML response)"
+            exists = False
+        elif "text/plain" not in content_type:
+            status = "Invalid (Wrong Content-Type)"
+            exists = False
+        elif not any(x in body.lower() for x in ["user-agent", "disallow", "allow"]):
+            status = "Invalid (Missing directives)"
+            exists = False
+        else:
+            status = "Found (Valid)"
+            exists = True
+
+        return {
+            "url": str(response.url),
+            "status_code": response.status_code,
+            "exists": exists,
+            "status_string": status,
+            "body": body if exists else "",
+        }
+    except Exception as exc:
+        return {
+            "url": target_url, "status_code": 0, "exists": False,
+            "status_string": "Missing", "body": "", "error": str(exc),
+        }
+
+async def _fetch_sitemap_xml(client: httpx.AsyncClient, target_url: str) -> dict:
+    try:
+        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
+        content_type = response.headers.get("content-type", "").lower()
+        body = response.text
+
+        final_url_path = urlparse(str(response.url)).path
+        if final_url_path == "" or final_url_path == "/":
+            status = "Invalid (Redirected to homepage)"
+            exists = False
+        elif response.status_code != 200:
+            status = "Missing"
+            exists = False
+        elif not body.strip():
+            status = "Invalid (Empty response)"
+            exists = False
+        elif "text/html" in content_type or "<html" in body.lower():
+            status = "Invalid (HTML response)"
+            exists = False
+        elif "xml" not in content_type:
+            status = "Invalid (Wrong Content-Type)"
+            exists = False
+        elif "<urlset" not in body.lower() and "<sitemapindex" not in body.lower():
+            status = "Invalid (Missing XML structure)"
+            exists = False
+        else:
+            status = "Found (Valid)"
+            exists = True
+
+        return {
+            "url": str(response.url),
+            "status_code": response.status_code,
+            "exists": exists,
+            "status_string": status,
+            "body": body if exists else "",
+        }
+    except Exception as exc:
+        return {
+            "url": target_url, "status_code": 0, "exists": False,
+            "status_string": "Missing", "body": "", "error": str(exc),
         }
 
 
@@ -308,16 +423,19 @@ async def _check_sampled_internal_links(
     }
 
 
-async def crawl_site(start_url: str) -> dict:
+async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
     normalized_start_url = normalize_crawl_url(start_url)
     base_domain = urlparse(normalized_start_url).netloc
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         robots_task = asyncio.create_task(
-            _fetch_supporting_resource(client, urljoin(normalized_start_url, "/robots.txt"))
+            _fetch_robots_txt(client, urljoin(normalized_start_url, "/robots.txt"))
         )
         sitemap_task = asyncio.create_task(
-            _fetch_supporting_resource(client, urljoin(normalized_start_url, "/sitemap.xml"))
+            _fetch_sitemap_xml(client, urljoin(normalized_start_url, "/sitemap.xml"))
+        )
+        favicon_task = asyncio.create_task(
+            _fetch_supporting_resource(client, urljoin(normalized_start_url, "/favicon.ico"))
         )
 
         queue = deque([(normalized_start_url, 0)])
@@ -337,14 +455,27 @@ async def crawl_site(start_url: str) -> dict:
 
             visited_urls.add(current_url)
 
-            try:
-                response = await client.get(
-                    current_url,
-                    headers=CRAWL_HEADERS,
-                    follow_redirects=True,
-                )
-                response.raise_for_status()
-            except Exception:
+            success = False
+            response = None
+            
+            for attempt in range(2):
+                try:
+                    response = await client.get(
+                        current_url,
+                        headers=CRAWL_HEADERS,
+                        follow_redirects=True,
+                    )
+                    response.raise_for_status()
+                    success = True
+                    break
+                except httpx.HTTPError as e:
+                    if response and response.status_code in {401, 403, 404, 405}:
+                        break  
+                    await asyncio.sleep(1.0)
+                except Exception:
+                    await asyncio.sleep(1.0)
+            
+            if not success or not response:
                 continue
 
             content_type = response.headers.get("content-type", "").lower()
@@ -373,7 +504,7 @@ async def crawl_site(start_url: str) -> dict:
                     queue.append((link, depth + 1))
                     queued_urls.add(link)
 
-        robots_data, sitemap_data = await asyncio.gather(robots_task, sitemap_task)
+        robots_data, sitemap_data, favicon_data = await asyncio.gather(robots_task, sitemap_task, favicon_task)
         broken_link_summary = await _check_sampled_internal_links(client, pages)
 
     declared_sitemaps = []
@@ -401,6 +532,7 @@ async def crawl_site(start_url: str) -> dict:
         "crawl_depth": max_depth_reached,
         "robots": robots_data,
         "sitemap": sitemap_data,
+        "favicon": favicon_data,
         "declared_sitemaps": declared_sitemaps,
         "broken_link_summary": broken_link_summary,
     }

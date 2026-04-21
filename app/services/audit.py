@@ -455,7 +455,19 @@ def _build_link_finding(
         )
         current_value = f"{format_percentage(density)} internal link density across crawlable links."
 
-        if density >= benchmark["min"]:
+        if internal_links < 5:
+            score = max(0.0, score - 50.0)
+            business_impact = "Bare isolated pages fail to circulate structural equity."
+            recommendation = "Low internal linking"
+            priority = "High"
+            current_value = f"Only {internal_links} internal links detected on this template."
+        elif external_links > 100:
+            score = max(0.0, score - 20.0)
+            business_impact = "Uncontrolled outbound links dilute PageRank flow and trigger spam heuristics."
+            recommendation = "Limit external outbound references per page."
+            priority = "High"
+            current_value = f"{external_links} external outbound nodes vastly exceed standard thresholds."
+        elif density >= benchmark["min"]:
             business_impact = (
                 "Healthy internal linking improves crawl efficiency, distributes authority to commercial pages, and helps visitors move deeper into lead-generation funnels."
             )
@@ -494,6 +506,138 @@ def _build_link_finding(
     return score, snapshot, finding
 
 
+def _build_canonical_finding(
+    has_canonical: bool,
+    page_url: str = "",
+) -> tuple[float, dict, dict]:
+    benchmark = SEO_BENCHMARKS["canonical"]
+    score = 100.0 if has_canonical else 0.0
+    evidence = _build_evidence(
+        page_url,
+        "Canonical tag detected." if has_canonical else "Canonical tag missing.",
+    )
+
+    if has_canonical:
+        current_value = "100% duplicate content protection with a valid canonical tag."
+        business_impact = (
+            "Canonical tags concentrate search equity and prevent parameter-based duplicate content dilution."
+        )
+        recommendation = "Maintain proper self-referencing canonical structures on all core pages."
+        priority = "Low"
+    else:
+        current_value = "0% duplicate content protection because the canonical tag is missing."
+        business_impact = (
+            "A missing canonical tag creates duplicate content risk, splitting link equity and confusing indexers."
+        )
+        recommendation = "Add canonical tag to avoid duplicate content issues"
+        priority = "High"
+
+    snapshot = _snapshot(
+        metric="Canonical Tag",
+        current_value=current_value,
+        benchmark=f"2026 standard: {benchmark['label']}.",
+        score=score,
+    )
+
+    finding = _finding(
+        category="Metadata",
+        metric="Canonical Tag",
+        current_value=current_value,
+        benchmark=f"2026 standard: {benchmark['label']}.",
+        score=score,
+        business_impact=business_impact,
+        recommendation=recommendation,
+        priority=priority,
+        evidence=evidence,
+    )
+
+    return score, snapshot, finding
+
+
+def _build_authority_finding(
+    page_authority: int,
+    page_url: str = "",
+) -> tuple[float, dict, dict]:
+    score = float(page_authority)
+    evidence = _build_evidence(page_url, f"Calculated Mock Page Authority: {page_authority}")
+
+    if page_authority < 40:
+        current_value = f"Authority score is critically low at {page_authority}/100."
+        business_impact = "Pages with low structural authority suffer poor rankings in competitive SERPs."
+        recommendation = "Low authority score - enhance internal linking density and content depth."
+        priority = "High"
+    else:
+        current_value = f"Healthy authority score at {page_authority}/100."
+        business_impact = "Strong structural authority signals high quality and trust to indexers."
+        recommendation = "Maintain content depth and strong interlinking."
+        priority = "Low"
+
+    snapshot = _snapshot(
+        metric="Domain Authority",
+        current_value=f"{page_authority}%",
+        benchmark="2026 standard: 60%+",
+        score=score,
+    )
+
+    finding = _finding(
+        category="Domain Authority",
+        metric="Domain Authority",
+        current_value=current_value,
+        benchmark="2026 standard: 60%+",
+        score=score,
+        business_impact=business_impact,
+        recommendation=recommendation,
+        priority=priority,
+        evidence=evidence,
+    )
+    return score, snapshot, finding
+
+
+def _build_dofollow_finding(
+    dofollow_links: int,
+    nofollow_links: int,
+    page_url: str = "",
+) -> tuple[float, dict, dict]:
+    from app.utils.helpers import format_percentage
+    total_links = dofollow_links + nofollow_links
+    nofollow_ratio = (nofollow_links / total_links) if total_links > 0 else 0.0
+    score = 100.0 if nofollow_ratio <= 0.50 else max(0.0, 100.0 - (nofollow_ratio - 0.50) * 200)
+
+    evidence = _build_evidence(page_url, f"{dofollow_links} dofollow, {nofollow_links} nofollow.")
+
+    if nofollow_ratio > 0.50:
+        current_value = f"Nofollow ratio is {format_percentage(nofollow_ratio * 100)}."
+        business_impact = "Excessive nofollow limits link equity distribution and throttles site health."
+        recommendation = "Too many nofollow links - change internal links to dofollow."
+        priority = "High"
+    else:
+        current_value = f"Healthy distribution: {dofollow_links} dofollow, {nofollow_links} nofollow."
+        business_impact = "Proper link equity distribution flows natively without artificial capping."
+        recommendation = "Maintain natural follow distributions."
+        priority = "Low"
+
+    valid_dofollow_pct = (dofollow_links/max(total_links,1))*100
+    snapshot = _snapshot(
+        metric="Link Type Distribution",
+        current_value=f"{format_percentage(valid_dofollow_pct)} dofollow / {format_percentage(nofollow_ratio*100)} nofollow",
+        benchmark="2026 standard: Balanced distribution",
+        score=score,
+    )
+
+    finding = _finding(
+        category="Internal Linking",
+        metric="Link Type Distribution",
+        current_value=current_value,
+        benchmark="2026 standard: Balanced distribution",
+        score=score,
+        business_impact=business_impact,
+        recommendation=recommendation,
+        priority=priority,
+        evidence=evidence,
+    )
+    return score, snapshot, finding
+
+
 def audit_seo(data: Dict[str, Any], page_url: str = "") -> dict:
     title = (data.get("title") or "").strip()
     description = (data.get("description") or "").strip()
@@ -508,6 +652,10 @@ def audit_seo(data: Dict[str, Any], page_url: str = "") -> dict:
     if not external_links:
         external_links = _count_items(data.get("external_links_count", 0))
     has_viewport_meta = bool(data.get("has_viewport_meta"))
+    has_canonical = bool(data.get("has_canonical"))
+    dofollow_links = data.get("dofollow_links", 0)
+    nofollow_links = data.get("nofollow_links", 0)
+    page_authority = data.get("page_authority", 0)
 
     scores = {}
     metric_summary = []
@@ -538,6 +686,31 @@ def audit_seo(data: Dict[str, Any], page_url: str = "") -> dict:
     scores["mobile_first"] = mobile_score
     metric_summary.append(mobile_snapshot)
     findings.append(mobile_finding)
+
+    canonical_score, canonical_snapshot, canonical_finding = _build_canonical_finding(
+        has_canonical,
+        page_url,
+    )
+    scores["canonical_tag"] = canonical_score
+    metric_summary.append(canonical_snapshot)
+    findings.append(canonical_finding)
+
+    auth_score, auth_snapshot, auth_finding = _build_authority_finding(
+        page_authority,
+        page_url,
+    )
+    scores["page_authority"] = auth_score
+    metric_summary.append(auth_snapshot)
+    findings.append(auth_finding)
+
+    follow_score, follow_snapshot, follow_finding = _build_dofollow_finding(
+        dofollow_links,
+        nofollow_links,
+        page_url,
+    )
+    scores["dofollow_ratio"] = follow_score
+    metric_summary.append(follow_snapshot)
+    findings.append(follow_finding)
 
     image_score, image_snapshot, image_finding = _build_image_finding(
         total_images,
@@ -637,6 +810,18 @@ def _build_page_summary(page: dict, page_audit: dict) -> dict:
         "word_count": page.get("word_count", 0),
         "seo_health": page_audit.get("overall_seo_health", "0%"),
         "key_issue": top_issue,
+        "canonical_url": page.get("canonical_url", ""),
+        "has_canonical": page.get("has_canonical", False),
+        "page_authority": page.get("page_authority", 0),
+        "dofollow_links": page.get("dofollow_links", 0),
+        "nofollow_links": page.get("nofollow_links", 0),
+        "url_structure": page.get("url_structure", {
+            "url": page.get("url", ""),
+            "is_seo_friendly": True,
+            "issues": [],
+            "recommendations": [],
+            "score": 100
+        }),
     }
 
 
@@ -649,7 +834,44 @@ def _duplicate_coverage(pages: list[dict], field_name: str) -> tuple[int, list[d
     return unique_count, duplicate_pages
 
 
-def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict]) -> dict:
+def _build_page_speed_finding(page_speed_data: dict) -> tuple[float, dict, dict]:
+    score = page_speed_data.get("score", 0)
+    response_time = page_speed_data.get("response_time", 0.0)
+    page_size_kb = page_speed_data.get("page_size_kb", 0.0)
+    status = page_speed_data.get("status", "Failed")
+
+    if score < 50:
+        current_value = f"Score: {score} (Time: {response_time}s, Size: {page_size_kb}KB)"
+        business_impact = "Slow load times dramatically increase bounce rate, penalize search rankings, and hemorrhage conversion potential."
+        recommendation = "Optimize images, reduce scripts, enable caching"
+        priority = "High"
+    else:
+        current_value = f"Score: {score} (Time: {response_time}s, Size: {page_size_kb}KB)"
+        business_impact = "Fast architectures maximize crawl budget efficiency and retain user attention during commercial discovery."
+        recommendation = "Maintain current asset bundling and caching rules."
+        priority = "Low"
+
+    snapshot = _snapshot(
+        metric="Page Speed",
+        current_value=f"{score} score",
+        benchmark="2026 standard: 90+",
+        score=score,
+    )
+
+    finding = _finding(
+        category="Performance",
+        metric="Page Speed",
+        current_value=current_value,
+        benchmark="2026 standard: 90+",
+        score=score,
+        business_impact=business_impact,
+        recommendation=recommendation,
+        priority=priority,
+        evidence=_build_evidence("Site Root", f"Response time: {response_time}s. Size: {page_size_kb}KB."),
+    )
+    return float(score), snapshot, finding
+
+def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict], page_speed_data: dict = None) -> dict:
     pages = crawl_data.get("pages", [])
     total_pages = len(pages)
 
@@ -1102,6 +1324,27 @@ def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict]) -> dict:
             ),
         )
     )
+    if page_speed_data:
+        speed_score, speed_snapshot, speed_finding = _build_page_speed_finding(page_speed_data)
+        score_map["page_speed"] = speed_score
+        metric_summary.insert(0, speed_snapshot)
+        findings.append(speed_finding)
+
+    bad_url_pages = [page for page in pages if page.get("url_structure", {}).get("score", 100) < 70]
+    if bad_url_pages:
+        findings.append(
+            _finding(
+                category="Information Architecture",
+                metric="URL Structure Optimization",
+                current_value=f"{len(bad_url_pages)} sampled pages utilize poorly structured or disjointed URLs.",
+                benchmark="2026 standard: URL baseline scores passing >= 70 threshold.",
+                score=0.0,
+                business_impact="Disorganized explicit URL targeting limits engine string parsing efficiency, disrupts UX readability mapping, and raises spam flagging heuristics.",
+                recommendation="Use short, readable URLs strictly relying on logical lowercase paths divided safely by hyphens.",
+                priority="High",
+                evidence=_collect_page_evidence(bad_url_pages, lambda _: True, lambda p: p.get("url", ""))
+            )
+        )
 
     overall_score = weighted_score(score_map, SITEWIDE_AUDIT_WEIGHTS)
 

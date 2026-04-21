@@ -284,6 +284,10 @@ def build_pdf_template_data(
             "value": f"{crawl_data.get('sample_coverage_ratio', 0.0)}%",
         },
         {
+            "label": "Favicon Status",
+            "value": "Found" if (crawl_data.get("favicon", {}).get("exists") or crawl_data.get("primary_page", {}).get("has_favicon")) else "Missing",
+        },
+        {
             "label": "Broken Link Ratio",
             "value": f"{crawl_data.get('broken_link_summary', {}).get('broken_ratio', 0.0)}%",
         },

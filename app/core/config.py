@@ -15,9 +15,9 @@ DEFAULT_MARKET_FOCUS_KEYWORDS = [
     "customer demand",
 ]
 
-CRAWL_MAX_PAGES = 6
-CRAWL_MAX_DEPTH = 1
-BROKEN_LINK_CHECK_LIMIT = 12
+CRAWL_MAX_PAGES = 100
+CRAWL_MAX_DEPTH = 3
+BROKEN_LINK_CHECK_LIMIT = 50
 
 SEO_BENCHMARKS = {
     "title_length": {
@@ -47,15 +47,20 @@ SEO_BENCHMARKS = {
         "max": 100,
         "label": "65%+ internal link density",
     },
+    "canonical": {
+        "target": True,
+        "label": "Self-referencing canonical tag present",
+    },
 }
 
 AUDIT_WEIGHTS = {
     "title": 20,
-    "meta_description": 20,
-    "heading_structure": 20,
+    "meta_description": 15,
+    "heading_structure": 15,
     "mobile_first": 15,
     "image_accessibility": 10,
     "linking_strategy": 15,
+    "canonical_tag": 10,
 }
 
 SITEWIDE_BENCHMARKS = {

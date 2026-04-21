@@ -1,10 +1,21 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 
 class URLRequest(BaseModel):
     url: str
+
+
+class FixRequest(BaseModel):
+    issue: str
+
+
+class FixResponse(BaseModel):
+    issue: str
+    current_code: str
+    fixed_code: str
+    explanation: str
 
 
 class EvidencePoint(BaseModel):
@@ -41,6 +52,13 @@ class MarketOpportunity(BaseModel):
     priority: Literal["High", "Medium", "Low"]
 
 
+class URLStructure(BaseModel):
+    is_seo_friendly: bool
+    issues: List[str]
+    recommendations: List[str]
+    score: int
+
+
 class PageSummary(BaseModel):
     url: str
     page_type: str
@@ -48,6 +66,12 @@ class PageSummary(BaseModel):
     word_count: int
     seo_health: str
     key_issue: str
+    canonical_url: str
+    has_canonical: bool
+    page_authority: int
+    dofollow_links: int
+    nofollow_links: int
+    url_structure: URLStructure
 
 
 class CrawlOverview(BaseModel):
@@ -57,6 +81,8 @@ class CrawlOverview(BaseModel):
     crawl_depth: int
     robots_txt_status: str
     sitemap_status: str
+    favicon_status: str
+    domain_authority: int
     broken_internal_link_ratio: str
     sampled_pages: List[PageSummary]
 
@@ -133,6 +159,72 @@ class PDFTemplateData(BaseModel):
     business_summary: str
 
 
+class BlogPost(BaseModel):
+    title: str
+    target_audience: str
+    search_intent: str
+    outline: List[str]
+
+
+class ContentStrategy(BaseModel):
+    blog_suggestions: List[BlogPost]
+    guest_post_titles: List[str]
+
+
+class PageSpeedData(BaseModel):
+    score: int
+    response_time: float
+    page_size_kb: float
+    status: str
+
+
+class KeywordIntent(BaseModel):
+    informational: List[str]
+    transactional: List[str]
+    navigational: List[str]
+
+
+class KeywordAnalysis(BaseModel):
+    primary_keywords: List[str]
+    long_tail_keywords: List[str]
+    keyword_intent: KeywordIntent
+
+
+class InternalLinkReport(BaseModel):
+    internal_link_score: int
+    issues: List[str]
+    recommendations: List[str]
+
+
+class ExternalLinkReport(BaseModel):
+    total_external_links: int
+    domains: List[str]
+
+
+class BacklinkReport(BaseModel):
+    backlink_strength: str
+    estimated_backlinks: int
+    referring_domains: int
+
+
+class LinkAnalysis(BaseModel):
+    internal: InternalLinkReport
+    external: ExternalLinkReport
+    backlinks: BacklinkReport
+
+
+class AIInsightItem(BaseModel):
+    issue: str
+    impact: str
+    priority: str
+    explanation: str
+    recommendation: str
+
+
+class AIInsights(BaseModel):
+    insights: List[AIInsightItem]
+
+
 class FinalResponse(BaseModel):
     executive_summary: str
     management_summary: ManagementSummary
@@ -143,3 +235,9 @@ class FinalResponse(BaseModel):
     recommended_roadmap: List[RoadmapItem]
     detailed_appendix: DetailedAppendix
     pdf_template_data: PDFTemplateData
+    content_strategy: ContentStrategy
+    page_speed: PageSpeedData
+    keyword_analysis: KeywordAnalysis
+    link_analysis: LinkAnalysis
+    ai_insights: AIInsights
+    report_url: Optional[str] = None

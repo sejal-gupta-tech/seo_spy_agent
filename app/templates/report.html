@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report_title }}</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 30px; }
+        h2 { color: #2980b9; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .score-card { background-color: #f8f9fa; border-left: 5px solid #27ae60; padding: 20px; font-size: 24px; font-weight: bold; margin-bottom: 30px; }
+        .summary { font-size: 16px; line-height: 1.6; color: #555; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #34495e; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .priority-High { color: #e74c3c; font-weight: bold; }
+        .priority-Medium { color: #f39c12; font-weight: bold; }
+        .priority-Low { color: #27ae60; font-weight: bold; }
+        .date { color: #7f8c8d; font-size: 14px; text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="date">Generated on: {{ generated_on }}</div>
+    <h1>{{ report_title }}</h1>
+
+    <div class="score-card">
+        Sitewide SEO Score: {{ hero_metrics[0].value if hero_metrics else 'N/A' }}
+    </div>
+
+    <h2>Executive Summary</h2>
+    <div class="summary">
+        {{ executive_summary }}
+    </div>
+
+    <h2>Priority Actions</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Headline</th>
+                <th>Priority</th>
+                <th>Business Impact</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for action in priority_actions %}
+            <tr>
+                <td><strong>{{ action.headline }}</strong></td>
+                <td class="priority-{{ action.priority }}">{{ action.priority }}</td>
+                <td>{{ action.business_impact }}</td>
+                <td>{{ action.action }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

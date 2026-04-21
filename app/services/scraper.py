@@ -59,11 +59,23 @@ def _sitemap_status_label(crawl_data: dict) -> str:
     sitemap_resource = crawl_data.get("sitemap", {})
     declared_sitemaps = crawl_data.get("declared_sitemaps", [])
 
-    if sitemap_resource.get("exists"):
-        return f"Found ({sitemap_resource.get('status_code', 200)})"
+    if sitemap_resource.get("exists") and sitemap_resource.get("status_string") == "Found (Valid)":
+        return "Found (Valid)"
     if declared_sitemaps:
         return f"Declared in robots.txt ({len(declared_sitemaps)})"
-    return _status_label(sitemap_resource, "Missing")
+    return sitemap_resource.get("status_string", "Missing")
+
+
+def _favicon_status_label(crawl_data: dict) -> str:
+    primary_page = crawl_data.get("primary_page", {})
+    if primary_page.get("has_favicon"):
+        return "Found (HTML meta tag)"
+    
+    favicon_resource = crawl_data.get("favicon", {})
+    if favicon_resource.get("exists"):
+        return f"Found (/{favicon_resource.get('status_code', 200)})"
+        
+    return _status_label(favicon_resource, "Missing")
 
 
 async def analyze_url(url: str):
@@ -71,6 +83,11 @@ async def analyze_url(url: str):
 
     crawl_data = await crawl_site(url)
     pages = crawl_data.get("pages", [])
+    
+    from app.services.url_analysis import analyze_url_structure
+    for page in pages:
+        if "url" in page:
+            page["url_structure"] = analyze_url_structure(page["url"])
 
     if not pages:
         logger.error("No crawlable HTML pages were returned from the crawl.")
@@ -89,12 +106,21 @@ async def analyze_url(url: str):
 
     primary_page_audit = audit_seo(primary_page, page_url=primary_page.get("url", ""))
     page_audits = [audit_seo(page, page_url=page.get("url", "")) for page in pages]
-    sitewide_audit = audit_sitewide(crawl_data, page_audits)
+
+    from app.services.page_speed import get_page_speed
+    page_speed_data = await get_page_speed(url)
+
+    sitewide_audit = audit_sitewide(crawl_data, page_audits, page_speed_data)
     logger.info(f"Sitewide SEO health score: {sitewide_audit.get('overall_score')}")
 
     ai_result = generate_seo_suggestions(primary_page)
     site_profile = build_site_profile(url, primary_page, ai_result)
     logger.info(f"Dynamic site profile prepared for: {site_profile.get('company_name')}")
+
+    from app.services.content_strategy import generate_blog_suggestions, generate_guest_post_titles
+    blog_suggestions = generate_blog_suggestions(primary_page, ai_result)
+    guest_posts = generate_guest_post_titles(primary_page, ai_result)
+    logger.info("Content Strategy Generation completed via OpenAI")
 
     fallback_text = " ".join(
         item
@@ -154,13 +180,23 @@ async def analyze_url(url: str):
         sitewide_audit,
     )
 
+    from app.services.authority import calculate_domain_authority, calculate_page_authority
+
+    # Enrich each page with Page Authority
+    for page in pages:
+        page["page_authority"] = calculate_page_authority(page)
+
+    domain_auth = calculate_domain_authority(pages)
+    
     crawl_overview = {
         "analyzed_pages": crawl_data.get("analyzed_pages", 0),
         "discovered_internal_pages": crawl_data.get("discovered_internal_pages", 0),
         "sample_coverage_ratio": format_percentage(crawl_data.get("sample_coverage_ratio", 0.0)),
         "crawl_depth": crawl_data.get("crawl_depth", 0),
-        "robots_txt_status": _status_label(crawl_data.get("robots", {}), "Missing"),
+        "robots_txt_status": crawl_data.get("robots", {}).get("status_string", "Missing"),
         "sitemap_status": _sitemap_status_label(crawl_data),
+        "favicon_status": _favicon_status_label(crawl_data),
+        "domain_authority": domain_auth,
         "broken_internal_link_ratio": format_percentage(
             crawl_data.get("broken_link_summary", {}).get("broken_ratio", 0.0)
         ),
@@ -185,6 +221,57 @@ async def analyze_url(url: str):
         data_limitations=data_limitations,
     )
 
+    from app.services.keyword_analysis import generate_relevant_keywords
+    keyword_analysis_data = generate_relevant_keywords(primary_page, ai_result.get("keywords", []))
+
+    if not keyword_analysis_data.get("primary_keywords"):
+        sitewide_audit.setdefault("findings", []).append({
+            "category": "Content Strategy",
+            "metric": "AI Keyword Extraction",
+            "current_value": "No relevant keywords detected.",
+            "benchmark": "2026 standard: At least 3 targeted semantic core terms.",
+            "score": 0,
+            "business_impact": "Absence of discoverable semantic targeting prevents ranking velocity for any navigational or transactional SERP clusters.",
+            "recommendation": "Rewrite page copy explicitly focusing on core commercial intent anchors.",
+            "priority": "High",
+            "evidence": []
+        })
+
+    from app.services.link_analysis import analyze_internal_linking, estimate_backlink_profile
+    internal_link_report = analyze_internal_linking(pages)
+    backlink_report = estimate_backlink_profile(pages)
+
+    total_externals = sum(p.get("external_links_count", 0) for p in pages)
+    ext_domains = set()
+    for p in pages:
+        ext_domains.update(p.get("external_domains", []))
+
+    link_analysis_data = {
+        "internal": internal_link_report,
+        "external": {
+            "total_external_links": total_externals,
+            "domains": list(ext_domains)
+        },
+        "backlinks": backlink_report
+    }
+
+    from app.services.ai_insights import get_ai_insights
+    ai_insights_data = get_ai_insights(sitewide_audit)
+
+    from app.services.report_generator import render_report_html, generate_pdf_report
+
+    print("Generating HTML report...")
+
+    html_content = render_report_html(pdf_template_data)
+
+    print("Generating PDF report...")
+
+    task_id = generate_pdf_report(html_content)
+
+    print("Task ID:", task_id)
+
+    report_url = f"/download-report/{task_id}" if task_id else None
+
     return {
         "executive_summary": executive_summary,
         "management_summary": management_summary,
@@ -200,4 +287,13 @@ async def analyze_url(url: str):
         "recommended_roadmap": recommended_roadmap,
         "detailed_appendix": detailed_appendix,
         "pdf_template_data": pdf_template_data,
+        "content_strategy": {
+            "blog_suggestions": blog_suggestions.get("blog_posts", []),
+            "guest_post_titles": guest_posts.get("guest_post_titles", [])
+        },
+        "page_speed": page_speed_data,
+        "keyword_analysis": keyword_analysis_data,
+        "link_analysis": link_analysis_data,
+        "ai_insights": ai_insights_data,
+        "report_url": report_url
     }
