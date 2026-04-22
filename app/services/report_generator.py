@@ -18,7 +18,7 @@ def generate_pdf_report(html_content: str) -> str:
 
     try:
         from weasyprint import HTML
-        HTML(string=html_content).write_pdf(pdf_path)
+        HTML(string=html_content, base_url=os.getcwd()).write_pdf(pdf_path)
         print(f"PDF generated: {pdf_path}")
         return task_id
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -150,10 +152,23 @@ class PDFTemplateData(BaseModel):
     generated_on: str
     executive_summary: str
     board_verdict: str
+    management_summary: ManagementSummary
     hero_metrics: List[PDFMetric]
     crawl_overview: List[PDFMetric]
     priority_actions: List[PDFPriorityAction]
     market_opportunities: List[MarketOpportunity]
+    technical_findings: List[TechnicalFinding]
+    metric_summary: List[MetricSnapshot]
+    recommended_roadmap: List[RoadmapItem]
+    content_strategy: ContentStrategy
+    keyword_analysis: KeywordAnalysis
+    page_speed: PageSpeedData
+    link_analysis: LinkAnalysis
+    ai_insights: List[AIInsightItem]
+    sampled_pages: List[PageSummary]
+    competitor_sample_size: int
+    keyword_overlap_score: str
+    content_gap_ratio: str
     data_limitations: List[DataLimitation]
     company_name: str
     business_summary: str

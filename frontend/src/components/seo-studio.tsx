@@ -257,10 +257,10 @@ function compactPathLabel(value: string): string {
 
 function feedToneClasses(tone: FeedTone): string {
   return {
-    teal: "border-[#1f8c95]/18 bg-[#edf9f8] text-[#14545b]",
-    amber: "border-[#d7a14a]/18 bg-[#fff8e5] text-[#8a6617]",
-    rose: "border-[#d86a4d]/18 bg-[#fff1eb] text-[#a5481f]",
-    ink: "border-white/10 bg-white/6 text-white/78",
+    teal: "border-[#1e5f6f] bg-[#0a1d26] text-[#d7f5ff]",
+    amber: "border-[#71511e] bg-[#21170a] text-[#ffe0ab]",
+    rose: "border-[#7a3a30] bg-[#26130f] text-[#ffd7cf]",
+    ink: "border-[#173544] bg-[#08161d] text-[#d7f5ff]",
   }[tone];
 }
 
@@ -506,11 +506,11 @@ async function consumeNdjsonStream(
 function priorityStyles(priority: string): string {
   switch (priority) {
     case "High":
-      return "border-[#d4683c]/20 bg-[#fff0e8] text-[#a5481f]";
+      return "border-[#7b3c32] bg-[#23120f] text-[#ffb4a4]";
     case "Medium":
-      return "border-[#db9c3c]/20 bg-[#fff6dd] text-[#8a6617]";
+      return "border-[#75541c] bg-[#21180a] text-[#ffd696]";
     default:
-      return "border-[#2d7b82]/20 bg-[#eefbfb] text-[#14545b]";
+      return "border-[#1f5c68] bg-[#0a1c24] text-[#93f7ff]";
   }
 }
 
@@ -523,14 +523,14 @@ function statusStyles(status: string): string {
     normalized.includes("risk") ||
     normalized.includes("missing")
   ) {
-    return "text-[#a5481f]";
+    return "text-[#ffb29a]";
   }
 
   if (normalized.includes("benchmark") || normalized.includes("strong")) {
-    return "text-[#14545b]";
+    return "text-[#93f7ff]";
   }
 
-  return "text-[#6c5e4e]";
+  return "text-[#d7f5ff]";
 }
 
 function compactNumber(value: number): string {
@@ -539,9 +539,9 @@ function compactNumber(value: number): string {
 
 function toneForRoadmap(priority: RoadmapItem["priority"]): string {
   return {
-    High: "from-[#ffd3bf] to-white",
-    Medium: "from-[#ffe7b3] to-white",
-    Low: "from-[#d9f3f2] to-white",
+    High: "from-[#25120f] via-[#111921] to-[#08161d]",
+    Medium: "from-[#241907] via-[#10181f] to-[#08161d]",
+    Low: "from-[#0c1d24] via-[#0a1820] to-[#07131a]",
   }[priority];
 }
 
@@ -559,12 +559,12 @@ function MetricTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-[1.6rem] border border-white/55 bg-white/72 p-4 shadow-[0_18px_45px_-35px_rgba(17,48,60,0.55)] backdrop-blur-xl">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6a726f]">
+    <div className="rounded-[1.6rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 p-4 shadow-[0_18px_45px_-35px_rgba(17,48,60,0.55)] backdrop-blur-xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
         {label}
       </p>
-      <p className="mt-3 text-2xl font-semibold text-[#11232d]">{value}</p>
-      {hint ? <p className="mt-2 text-sm text-[#66757d]">{hint}</p> : null}
+      <p className="mt-3 text-2xl font-semibold text-[#eef9ff]">{value}</p>
+      {hint ? <p className="mt-2 text-sm text-[#8ea6b2]">{hint}</p> : null}
     </div>
   );
 }
@@ -583,16 +583,197 @@ function SectionHeading({
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
       <div className="space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#6b7d80]">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8ea6b2]">
           {eyebrow}
         </p>
-        <h2 className="font-heading text-3xl leading-none text-[#11232d] md:text-[2.6rem]">
+        <h2 className="font-heading text-3xl leading-none text-[#eef9ff] md:text-[2.6rem]">
           {title}
         </h2>
-        <p className="max-w-2xl text-sm leading-6 text-[#67787d]">{blurb}</p>
+        <p className="max-w-2xl text-sm leading-6 text-[#8ea6b2]">{blurb}</p>
       </div>
       {action}
     </div>
+  );
+}
+
+const agentNodePositions = [
+  "left-[3%] top-[8%] md:left-[8%] md:top-[11%]",
+  "right-[3%] top-[10%] md:right-[8%] md:top-[14%]",
+  "left-[1%] top-[40%] md:left-[6%] md:top-[46%]",
+  "right-[1%] top-[42%] md:right-[6%] md:top-[48%]",
+  "left-1/2 bottom-[8%] -translate-x-1/2 md:bottom-[10%]",
+] as const;
+
+function AgentConstellation({
+  telemetry,
+  report,
+  isLoading,
+}: {
+  telemetry: LiveTelemetryState;
+  report: AnalysisResponse | null;
+  isLoading: boolean;
+}) {
+  const activeStageId = report ? "report" : telemetry.currentStageId;
+  const activeAgent = getAgentDefinition(activeStageId);
+  const stageStatus = report
+    ? {
+        crawl: "completed",
+        audit: "completed",
+        ai: "completed",
+        competition: "completed",
+        report: "completed",
+      }
+    : telemetry.stageStatus;
+
+  const coreLabel = report
+    ? "Export bundle ready"
+    : isLoading
+      ? "Agents reasoning live"
+      : "Awaiting domain target";
+  const coreCopy = report
+    ? report.management_summary.board_verdict
+    : isLoading
+      ? buildMissionSummary(telemetry)
+      : "Submit a domain and the orchestration core fans out scout, audit, strategy, market, and narrator agents in sequence.";
+  const bottomSignals = [
+    {
+      label: report ? "Health" : "Signal",
+      value: report
+        ? report.technical_audit.overall_seo_health
+        : telemetry.signalValue,
+      hint: report ? "Board health verdict" : telemetry.signalHint,
+    },
+    {
+      label: "Pages",
+      value: report
+        ? compactNumber(report.crawl_overview.discovered_internal_pages)
+        : compactNumber(telemetry.discoveredPages),
+      hint: report ? "Discovered internal URLs" : `${telemetry.analyzedPages} sampled`,
+    },
+    {
+      label: report ? "PDF" : "Queue",
+      value: report ? (report.report_url ? "Ready" : "Pending") : `${telemetry.queueRemaining}`,
+      hint: report ? "Board-ready export" : "URLs waiting for scout agent",
+    },
+  ];
+
+  return (
+    <Card className="signal-display relative min-h-[34rem] rounded-[2rem] border border-[#143643]/20 bg-[#08161d]/92 text-white shadow-[0_45px_140px_-70px_rgba(9,28,36,1)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(126,240,255,0.08),transparent_42%),linear-gradient(180deg,rgba(126,240,255,0.05),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-10 top-8 h-px bg-[linear-gradient(90deg,transparent,rgba(126,240,255,0.26),transparent)]" />
+      <CardHeader className="relative z-10 space-y-4">
+        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
+          AI orchestration board
+        </Badge>
+        <CardTitle className="max-w-xl text-3xl text-[#eef9ff]">
+          {report
+            ? report.pdf_template_data.report_title
+            : isLoading
+              ? `${activeAgent.codename} is routing the mission`
+              : "A visual map of the five AI agents behind the audit"}
+        </CardTitle>
+        <CardDescription className="max-w-xl text-base leading-7 text-[#8ea6b2]">
+          {report
+            ? report.management_summary.confidence_note
+            : isLoading
+              ? buildMissionSummary(telemetry)
+              : "This board is the handoff system: each agent owns one decision layer and passes structured evidence to the next stage."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="relative z-10 min-h-[28rem]">
+        <div className="pointer-events-none absolute inset-x-10 top-8 bottom-20 rounded-[2rem] border border-[#173544]/70 bg-[radial-gradient(circle_at_center,rgba(11,35,45,0.75),rgba(6,14,20,0.96))]" />
+        <div className="pointer-events-none absolute left-1/2 top-[47%] size-[19rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#173544]/80" />
+        <motion.div
+          aria-hidden
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Number.POSITIVE_INFINITY, duration: 22, ease: "linear" }}
+          className="pointer-events-none absolute left-1/2 top-[47%] size-[15rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-[#93f7ff]/20"
+        />
+        <motion.div
+          aria-hidden
+          animate={{
+            boxShadow: [
+              "0 0 0 0 rgba(126,240,255,0.06)",
+              "0 0 0 18px rgba(126,240,255,0)",
+            ],
+          }}
+          transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2.8, ease: "easeOut" }}
+          className="pointer-events-none absolute left-1/2 top-[47%] size-[8.5rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(126,240,255,0.28),rgba(10,27,36,0.92)_70%)]"
+        />
+
+        <div className="absolute left-1/2 top-[47%] z-10 w-[16rem] -translate-x-1/2 -translate-y-1/2 rounded-[1.8rem] border border-[#1d4757] bg-[#09171e]/92 px-5 py-6 text-center shadow-[0_35px_90px_-50px_rgba(126,240,255,0.55)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#93f7ff]">
+            SEO Spy Core
+          </p>
+          <p className="mt-3 text-2xl font-semibold text-[#eef9ff]">{coreLabel}</p>
+          <p className="mt-3 text-sm leading-6 text-[#8ea6b2]">{coreCopy}</p>
+        </div>
+
+        {agentDefinitions.map((agent, index) => {
+          const status = stageStatus[agent.id];
+          const isActive = !report && activeStageId === agent.id;
+          const Icon = agent.icon;
+
+          return (
+            <motion.div
+              key={agent.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.06 }}
+              className={cn(
+                "absolute z-10 w-[12.75rem] rounded-[1.45rem] border px-4 py-3 backdrop-blur-xl",
+                agentNodePositions[index],
+                status === "completed"
+                  ? "border-[#235662] bg-[#0c2028]/92 shadow-[0_18px_45px_-32px_rgba(126,240,255,0.35)]"
+                  : isActive
+                    ? "border-[#7ef0ff]/35 bg-[#11222a]/96 shadow-[0_22px_50px_-30px_rgba(126,240,255,0.45)]"
+                    : "border-[#173544] bg-[#09161d]/90",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="rounded-full border border-[#173544] bg-[#0c2028] p-2">
+                  <Icon className="size-4 text-[#93f7ff]" />
+                </div>
+                <Badge
+                  className={cn(
+                    "px-2 py-0.5 text-[10px] uppercase tracking-[0.24em]",
+                    status === "completed"
+                      ? "border-[#1f5c68] bg-[#0a1c24] text-[#93f7ff]"
+                      : isActive
+                        ? "border-[#75541c] bg-[#21180a] text-[#ffd696]"
+                        : "border-[#173544] bg-[#08161d] text-[#8ea6b2]",
+                  )}
+                >
+                  {status === "completed" ? "Synced" : isActive ? "Running" : "Queued"}
+                </Badge>
+              </div>
+              <p className="mt-3 text-[11px] uppercase tracking-[0.24em] text-[#8ea6b2]">
+                Agent {index + 1}
+              </p>
+              <p className="mt-2 text-base font-semibold text-[#eef9ff]">{agent.codename}</p>
+              <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">
+                {isActive ? telemetry.stageDetail : agent.output}
+              </p>
+            </motion.div>
+          );
+        })}
+
+        <div className="absolute inset-x-0 bottom-0 grid gap-3 md:grid-cols-3">
+          {bottomSignals.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-[1.35rem] border border-[#173544] bg-[#09161d]/90 px-4 py-3"
+            >
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#8ea6b2]">
+                {item.label}
+              </p>
+              <p className="mt-2 text-lg font-semibold text-[#eef9ff]">{item.value}</p>
+              <p className="mt-1 text-sm text-[#8ea6b2]">{item.hint}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -610,54 +791,54 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
       exit={{ opacity: 0, y: -12 }}
       className="mt-10 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]"
     >
-      <Card className="rounded-[2rem] border border-white/55 bg-white/72 backdrop-blur-xl">
+      <Card className="rounded-[2rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
         <CardHeader>
-          <Badge className="w-fit border-[#d7e3df] bg-white/70 text-[#0e5d6f]">
+          <Badge className="w-fit border-[#173544] bg-[#08161d]/82 text-[#93f7ff]">
             Live mission control
           </Badge>
-          <CardTitle className="text-3xl text-[#11232d]">
+          <CardTitle className="text-3xl text-[#eef9ff]">
             {activeAgent.codename} is live
           </CardTitle>
-          <CardDescription className="text-base leading-7 text-[#67787d]">
+          <CardDescription className="text-base leading-7 text-[#8ea6b2]">
             {buildMissionSummary(telemetry)}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="rounded-[1.6rem] border border-[#dce6e2] bg-[#fbf7ef]/85 p-4 shadow-[0_18px_40px_-40px_rgba(17,48,60,0.7)]">
+          <div className="rounded-[1.6rem] border border-[#173544] bg-[#0c1820]/92 p-4 shadow-[0_18px_40px_-40px_rgba(17,48,60,0.7)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7a7c]">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                   Mission progress
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-[#11232d]">
+                <p className="mt-2 text-2xl font-semibold text-[#eef9ff]">
                   {missionProgress}% complete
                 </p>
               </div>
-              <Badge className="border-[#dce6e2] bg-white/85 text-[#0e5d6f]">
+              <Badge className="border-[#173544] bg-[#0b1b24]/90 text-[#93f7ff]">
                 {completedAgents} of 5 agents finished
               </Badge>
             </div>
-            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#d7e6e1]">
+            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#10212a]">
               <motion.div
                 animate={{ width: `${missionProgress}%` }}
-                className="h-full rounded-full bg-[linear-gradient(90deg,#0f6775,#e1a66a)]"
+                className="h-full rounded-full bg-[linear-gradient(90deg,#7ef0ff,#b6ff5c)]"
                 transition={{ type: "spring", stiffness: 110, damping: 18 }}
               />
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.2rem] border border-[#dce6e2] bg-white/80 p-3">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[#6d7d81]">
+              <div className="rounded-[1.2rem] border border-[#173544] bg-[#08161d]/84 p-3">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8ea6b2]">
                   Active mission
                 </p>
-                <p className="mt-2 text-sm font-semibold text-[#13333f]">
+                <p className="mt-2 text-sm font-semibold text-[#d7f5ff]">
                   {activeAgent.mission}
                 </p>
               </div>
-              <div className="rounded-[1.2rem] border border-[#dce6e2] bg-white/80 p-3">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[#6d7d81]">
+              <div className="rounded-[1.2rem] border border-[#173544] bg-[#08161d]/84 p-3">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8ea6b2]">
                   Next handoff
                 </p>
-                <p className="mt-2 text-sm font-semibold text-[#13333f]">
+                <p className="mt-2 text-sm font-semibold text-[#d7f5ff]">
                   {nextAgent
                     ? `${nextAgent.codename} prepares ${nextAgent.output.toLowerCase()}.`
                     : "The executive brief is being finalized for export."}
@@ -689,39 +870,39 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
             />
           </div>
 
-          <div className="rounded-[1.55rem] border border-[#dce6e2] bg-[#fbf7ef]/80 p-4">
+          <div className="rounded-[1.55rem] border border-[#173544] bg-[#0a161d]/92 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7a7c]">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                   Current target
                 </p>
-                <p className="mt-2 font-mono text-sm text-[#163843]">
+                <p className="mt-2 font-mono text-sm text-[#d7f5ff]">
                   {telemetry.currentUrl
                     ? truncateUrl(telemetry.currentUrl, 72)
                     : "Waiting for the first crawl response..."}
                 </p>
-                <p className="mt-2 text-sm leading-6 text-[#6c7b80]">
+                <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">
                   {telemetry.stageDetail}
                 </p>
               </div>
-              <div className="rounded-full border border-[#dce6e2] bg-white/85 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#0e5d6f]">
+              <div className="rounded-full border border-[#173544] bg-[#0b1b24]/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#93f7ff]">
                 {formatElapsed(telemetry.activityFeed[0]?.elapsedSeconds) || "live"}
               </div>
             </div>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
-            <div className="rounded-[1.6rem] border border-[#dfe7e1] bg-[#f8f4ea]/80 p-4">
+            <div className="rounded-[1.6rem] border border-[#173544] bg-[#0b1820]/88 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7a7c]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                     Crawl tape
                   </p>
-                  <p className="mt-1 text-sm text-[#6d7b80]">
+                  <p className="mt-1 text-sm text-[#8ea6b2]">
                     Live pages fetched, their depth, and the next URLs discovered.
                   </p>
                 </div>
-                <Badge className="border-[#dce6e2] bg-white/80 text-[#0e5d6f]">
+                <Badge className="border-[#173544] bg-[#08161d]/84 text-[#93f7ff]">
                   {telemetry.recentPages.length} recent pages
                 </Badge>
               </div>
@@ -731,23 +912,23 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                   telemetry.recentPages.map((page) => (
                     <div
                       key={`${page.url}-${page.elapsed_seconds ?? 0}`}
-                      className="rounded-[1.35rem] border border-[#dde6e2] bg-white/82 p-4 shadow-[0_18px_45px_-40px_rgba(17,48,60,0.55)]"
+                      className="rounded-[1.35rem] border border-[#173544] bg-[#08161d]/86 p-4 shadow-[0_18px_45px_-40px_rgba(17,48,60,0.55)]"
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="border-[#dce6e2] bg-[#eef8f7] text-[#14545b]">
+                        <Badge className="border-[#1f5c68] bg-[#0a1c24] text-[#93f7ff]">
                           Depth {page.depth}
                         </Badge>
-                        <Badge className="border-[#ecd8bf] bg-[#fff6e9] text-[#8a6617]">
+                        <Badge className="border-[#75541c] bg-[#21180a] text-[#ffd696]">
                           {page.page_type}
                         </Badge>
                         <span className="text-xs uppercase tracking-[0.22em] text-[#718086]">
                           {formatElapsed(page.elapsed_seconds)}
                         </span>
                       </div>
-                      <p className="mt-3 font-mono text-sm text-[#163843]">
+                      <p className="mt-3 font-mono text-sm text-[#d7f5ff]">
                         {compactPathLabel(page.url)}
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-[#617279]">
+                      <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">
                         {page.title || "Untitled page"} · {page.internal_links_count} internal
                         · {page.external_links_count} external
                       </p>
@@ -756,7 +937,7 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                           {page.new_links_sample.map((link) => (
                             <span
                               key={link}
-                              className="rounded-full border border-[#dce6e2] bg-[#f5f8f6] px-3 py-1 text-xs text-[#4f656d]"
+                              className="rounded-full border border-[#173544] bg-[#10212a] px-3 py-1 text-xs text-[#d7f5ff]"
                             >
                               {compactPathLabel(link)}
                             </span>
@@ -770,7 +951,7 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                     {[1, 2, 3, 4].map((slot) => (
                       <div
                         key={slot}
-                        className="rounded-[1.35rem] border border-[#dde6e2] bg-white/78 p-4"
+                        className="rounded-[1.35rem] border border-[#173544] bg-[#08161d]/82 p-4"
                       >
                         <Skeleton className="mb-3 h-5 w-20 rounded-full bg-[#d8e4df]" />
                         <Skeleton className="mb-2 h-4 w-40 rounded-full bg-[#efe0c9]" />
@@ -782,17 +963,17 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
               </div>
             </div>
 
-            <div className="rounded-[1.6rem] border border-[#dfe7e1] bg-[#f8f4ea]/80 p-4">
+            <div className="rounded-[1.6rem] border border-[#173544] bg-[#0b1820]/88 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7a7c]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                     Emerging findings
                   </p>
-                  <p className="mt-1 text-sm text-[#6d7b80]">
+                  <p className="mt-1 text-sm text-[#8ea6b2]">
                     Issues and opportunities surfaced as soon as the audit has signal.
                   </p>
                 </div>
-                <Badge className="border-[#dce6e2] bg-white/80 text-[#0e5d6f]">
+                <Badge className="border-[#173544] bg-[#08161d]/84 text-[#93f7ff]">
                   {telemetry.recentFindings.length} findings
                 </Badge>
               </div>
@@ -802,17 +983,17 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                   telemetry.recentFindings.map((finding) => (
                     <div
                       key={`${finding.metric}-${finding.priority}`}
-                      className="rounded-[1.35rem] border border-[#dde6e2] bg-white/82 p-4"
+                      className="rounded-[1.35rem] border border-[#173544] bg-[#08161d]/86 p-4"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-[#173843]">
+                        <p className="text-sm font-semibold text-[#d7f5ff]">
                           {finding.metric}
                         </p>
                         <Badge className={priorityStyles(finding.priority)}>
                           {finding.priority}
                         </Badge>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-[#64747b]">
+                      <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">
                         {finding.recommendation}
                       </p>
                     </div>
@@ -822,7 +1003,7 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                     {[1, 2, 3].map((slot) => (
                       <div
                         key={slot}
-                        className="rounded-[1.35rem] border border-[#dde6e2] bg-white/78 p-4"
+                        className="rounded-[1.35rem] border border-[#173544] bg-[#08161d]/82 p-4"
                       >
                         <Skeleton className="mb-3 h-4 w-32 rounded-full bg-[#d8e4df]" />
                         <Skeleton className="mb-2 h-3 w-full rounded-full bg-[#efe0c9]" />
@@ -834,17 +1015,17 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
               </div>
             </div>
 
-            <div className="rounded-[1.6rem] border border-[#dfe7e1] bg-[#f8f4ea]/80 p-4">
+            <div className="rounded-[1.6rem] border border-[#173544] bg-[#0b1820]/88 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7a7c]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                     Crawl blockers
                   </p>
-                  <p className="mt-1 text-sm text-[#6d7b80]">
+                  <p className="mt-1 text-sm text-[#8ea6b2]">
                     The agent keeps moving, but these routes slowed or blocked the crawl.
                   </p>
                 </div>
-                <Badge className="border-[#dce6e2] bg-white/80 text-[#8a4b27]">
+                <Badge className="border-[#173544] bg-[#08161d]/84 text-[#8a4b27]">
                   {telemetry.crawlIssues.total} blockers
                 </Badge>
               </div>
@@ -872,7 +1053,7 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                   ))}
                 </div>
               ) : (
-                <div className="mt-4 rounded-[1.2rem] border border-[#dce6e2] bg-white/78 p-4 text-sm text-[#6d7d81]">
+                <div className="mt-4 rounded-[1.2rem] border border-[#173544] bg-[#08161d]/82 p-4 text-sm text-[#8ea6b2]">
                   No blockers yet. The crawler is moving through the site cleanly.
                 </div>
               )}
@@ -880,7 +1061,7 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
           </div>
         </CardContent>
       </Card>
-      <Card className="rounded-[2rem] border border-[#173340]/10 bg-[#102f3c] text-white shadow-[0_30px_120px_-60px_rgba(9,28,36,0.95)]">
+      <Card className="signal-display rounded-[2rem] border border-[#173340]/10 bg-[#102f3c] text-white shadow-[0_30px_120px_-60px_rgba(9,28,36,0.95)]">
         <CardHeader>
           <Badge className="w-fit border-white/15 bg-white/10 text-white">
             AI agent team
@@ -905,7 +1086,7 @@ function LoadingDeck({ telemetry }: { telemetry: LiveTelemetryState }) {
                   className={cn(
                     "rounded-[1.35rem] border px-4 py-4 backdrop-blur-xl transition-colors",
                     status === "completed"
-                      ? "border-[#2d7b82]/28 bg-white/12 text-white"
+                      ? "border-[#8defff]/28 bg-white/12 text-white"
                       : status === "active"
                         ? "border-[#f3bf88]/40 bg-white/14 text-white"
                         : "border-white/10 bg-white/5 text-white/68",
@@ -1072,45 +1253,99 @@ function EmptyCanvas() {
       animate={{ opacity: 1, y: 0 }}
       className="mt-10"
     >
-      <Card className="rounded-[2rem] border border-dashed border-[#1f4d5d]/20 bg-white/60 backdrop-blur-xl">
+      <Card className="rounded-[2rem] border border-dashed border-[#1f4d5d]/20 bg-[#08161d]/88 backdrop-blur-xl">
         <CardHeader>
-          <Badge className="w-fit border-[#dce6e2] bg-[#f5f7f2] text-[#0e5d6f]">
-            Ready for an AI-led audit
+          <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
+            Sponsor preview mode
           </Badge>
-          <CardTitle className="text-3xl text-[#11232d]">
-            Launch a domain and the agent team takes over.
+          <CardTitle className="text-3xl text-[#eef9ff]">
+            What changes the moment a domain enters the pipeline.
           </CardTitle>
-          <CardDescription className="max-w-2xl text-base leading-7 text-[#66757d]">
-            The crawl agent maps the site, the audit agent scores SEO health, the
-            strategy agents generate opportunities, and the narrator agent turns that
-            evidence into a report your sponsor can actually understand.
+          <CardDescription className="max-w-2xl text-base leading-7 text-[#8ea6b2]">
+            This is the product story in motion: the agents fan out, evidence accumulates,
+            and the UI turns raw SEO signals into something a sponsor can follow without
+            staring at logs.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          {[
-            {
-              title: "Agent mission board",
-              text: "Clear progress, active agent handoffs, crawl blockers, and the current target URL as the analysis runs.",
-            },
-            {
-              title: "Executive SEO brief",
-              text: "A crisp management summary with strongest asset, biggest risk, roadmap, and growth angles.",
-            },
-            {
-              title: "Fix lab",
-              text: "Push a finding into the AI fix generator and review the before/after code without leaving the page.",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className="rounded-[1.5rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-5"
-            >
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0e5d6f]">
-                {item.title}
+        <CardContent className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="grid gap-3">
+            {[
+              {
+                label: "1. Scout Agent",
+                title: "Maps site topology and filters dead or gated routes",
+                text: "The sponsor sees fetched pages, crawl depth, blocked routes, and the live frontier while the run is still moving.",
+              },
+              {
+                label: "2. Audit + Strategy Agents",
+                title: "Turn raw HTML into health scores, findings, and growth angles",
+                text: "Instead of a dead loading state, the interface surfaces signal movement, findings, and keyword opportunities in the middle of the run.",
+              },
+              {
+                label: "3. Narrator Agent",
+                title: "Packages the audit into an executive brief and export",
+                text: "The final state is a board-ready report with readable sections and a complete PDF, not a raw JSON dump.",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-[1.5rem] border border-[#173544] bg-[#0a161d]/92 p-5"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#93f7ff]">
+                  {item.label}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[#eef9ff]">{item.title}</p>
+                <p className="mt-3 text-sm leading-6 text-[#8ea6b2]">{item.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-4">
+            <div className="rounded-[1.55rem] border border-[#173544] bg-[#0b1820] p-5">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#93f7ff]">
+                Evidence layers
               </p>
-              <p className="mt-3 text-sm leading-6 text-[#6b7a7c]">{item.text}</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {[
+                  "Crawl tape",
+                  "Blocker feed",
+                  "AI findings",
+                  "Competitor gaps",
+                  "Roadmap",
+                  "PDF export",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-[1.2rem] border border-[#173544] bg-[#08161d] px-4 py-3 text-sm text-[#d7f5ff]"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+
+            <div className="rounded-[1.55rem] border border-[#173544] bg-[#0b1820] p-5">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#93f7ff]">
+                Demo promise
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#d7f5ff]">
+                A visitor should understand what the AI is doing before the report is finished.
+                That means visible handoffs, visible evidence, and a final deliverable that feels complete.
+              </p>
+            </div>
+
+            <div className="rounded-[1.55rem] border border-[#173544] bg-[#09171e] p-5">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#93f7ff]">
+                Product position
+              </p>
+              <p className="mt-3 text-xl font-semibold leading-8 text-[#eef9ff]">
+                Not an SEO dashboard. An AI audit room with visible reasoning.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#8ea6b2]">
+                The visual system should sell motion, handoff, and evidence. The final
+                report should feel like the conclusion of that mission, not a separate tool.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </motion.section>
@@ -1138,10 +1373,6 @@ export function SeoStudio() {
   const priorityActions = report?.pdf_template_data.priority_actions.slice(0, 4) ?? [];
   const opportunities = report?.competitive_intelligence.market_opportunities ?? [];
   const pageSummaries = report?.crawl_overview.sampled_pages.slice(0, 8) ?? [];
-  const activeAgent = getAgentDefinition(liveTelemetry.currentStageId);
-  const missionProgress = deriveMissionProgress(liveTelemetry);
-  const completedAgents = countCompletedStages(liveTelemetry.stageStatus);
-  const nextAgent = getNextPendingAgent(liveTelemetry.stageStatus);
 
   function applyStreamEvent(event: AnalysisStreamEvent) {
     setLiveTelemetry((current) => {
@@ -1517,8 +1748,8 @@ export function SeoStudio() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top_left,rgba(17,105,122,0.26),transparent_45%),radial-gradient(circle_at_top_right,rgba(217,128,67,0.18),transparent_40%)]" />
+    <div className="signal-lab-shell relative min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_top_left,rgba(126,240,255,0.22),transparent_36%),radial-gradient(circle_at_top_right,rgba(182,255,92,0.16),transparent_32%),linear-gradient(180deg,rgba(126,240,255,0.08),transparent_68%)]" />
       <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-24 pt-6 md:px-8 md:pt-10">
         <motion.header
           initial={{ opacity: 0, y: -16 }}
@@ -1526,17 +1757,17 @@ export function SeoStudio() {
           className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"
         >
           <div className="space-y-4">
-            <Badge className="w-fit border-white/60 bg-white/72 px-4 py-1 text-[11px] uppercase tracking-[0.3em] text-[#0e5d6f] shadow-sm">
-              SEO Spy Studio
+            <Badge className="w-fit border-[#7ef0ff]/20 bg-[#08161f]/80 px-4 py-1 text-[11px] uppercase tracking-[0.3em] text-[#93f7ff] shadow-[0_10px_30px_-18px_rgba(126,240,255,0.65)]">
+              SEO Spy Agent
             </Badge>
             <div className="space-y-4">
-              <h1 className="max-w-4xl font-heading text-[3.2rem] leading-[0.9] text-[#10242f] sm:text-[4.4rem] lg:text-[5.4rem]">
-                Let AI agents crawl, diagnose, and brief the site in one sponsor-ready flow.
+              <h1 className="max-w-4xl font-heading text-[3rem] leading-[0.9] font-semibold tracking-[-0.05em] text-[#effaff] sm:text-[4.2rem] lg:text-[5.1rem]">
+                An AI signal room for crawling, diagnosing, and briefing SEO in public.
               </h1>
-              <p className="max-w-2xl text-base leading-8 text-[#66757d] md:text-lg">
-                Scout, Audit, Strategy, Market, and Narrator agents work live against the
-                domain, then turn that evidence into a clean executive SEO brief instead
-                of a confusing debug log.
+              <p className="max-w-2xl text-base leading-8 text-[#91a9b4] md:text-lg">
+                This is not a static dashboard. The agent team maps the site live, isolates
+                dead routes and crawl barriers, drafts the SEO case, and forges a board-ready
+                report while the sponsor watches the evidence accumulate.
               </p>
             </div>
           </div>
@@ -1560,13 +1791,13 @@ export function SeoStudio() {
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-[1.4rem] border border-white/55 bg-white/72 p-4 shadow-[0_18px_50px_-38px_rgba(17,48,60,0.65)] backdrop-blur-xl"
+                className="rounded-[1.4rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 p-4 shadow-[0_18px_50px_-38px_rgba(17,48,60,0.65)] backdrop-blur-xl"
               >
-                <item.icon className="size-5 text-[#0e5d6f]" />
-                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.24em] text-[#6f7c7e]">
+                <item.icon className="size-5 text-[#93f7ff]" />
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                   {item.label}
                 </p>
-                <p className="mt-2 text-sm font-medium text-[#11232d]">{item.value}</p>
+                <p className="mt-2 text-sm font-medium text-[#eef9ff]">{item.value}</p>
               </div>
             ))}
           </div>
@@ -1574,15 +1805,15 @@ export function SeoStudio() {
 
         <section className="mt-10 grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="rounded-[2rem] border border-white/60 bg-white/74 shadow-[0_40px_120px_-62px_rgba(17,48,60,0.7)] backdrop-blur-xl">
+            <Card className="rounded-[2rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 shadow-[0_40px_120px_-62px_rgba(17,48,60,0.7)] backdrop-blur-xl">
               <CardHeader className="space-y-4">
-                <Badge className="w-fit border-[#d5dfda] bg-[#f8faf8] px-4 py-1 text-[#0e5d6f]">
+                <Badge className="w-fit border-[#173544] bg-[#0b1820] px-4 py-1 text-[#93f7ff]">
                   Analysis launchpad
                 </Badge>
-                <CardTitle className="text-3xl text-[#11232d] md:text-4xl">
+                <CardTitle className="text-3xl text-[#eef9ff] md:text-4xl">
                   Run a domain and watch the AI agent team build the SEO case live.
                 </CardTitle>
-                <CardDescription className="max-w-2xl text-base leading-7 text-[#66757d]">
+                <CardDescription className="max-w-2xl text-base leading-7 text-[#8ea6b2]">
                   The browser never talks to Python directly. Next.js proxies the crawl,
                   streaming updates back as the agents map the site, score technical
                   health, compare competitors, and draft the final narrative.
@@ -1595,11 +1826,11 @@ export function SeoStudio() {
                       value={url}
                       onChange={(event) => setUrl(event.target.value)}
                       placeholder="https://example.com"
-                      className="h-12 rounded-[1.25rem] border-[#d6e0dc] bg-white/90 px-4 text-base shadow-inner shadow-[#f1e8d7]"
+                      className="h-12 rounded-[1.25rem] border-[#d6e0dc] bg-[#06131a]/92 px-4 text-base shadow-inner shadow-[#f1e8d7]"
                     />
                     <Button
                       type="submit"
-                      className="h-12 rounded-[1.25rem] bg-[#0f6775] px-6 text-white hover:bg-[#0d5561]"
+                      className="h-12 rounded-[1.25rem] bg-[linear-gradient(135deg,#7ef0ff,#b6ff5c)] px-6 text-[#041015] shadow-[0_18px_45px_-24px_rgba(126,240,255,0.6)] hover:brightness-105"
                       disabled={isLoading}
                     >
                       {isLoading ? (
@@ -1624,22 +1855,29 @@ export function SeoStudio() {
                         key={preset.value}
                         type="button"
                         onClick={() => setUrl(preset.value)}
-                        className="rounded-full border border-[#dbe4df] bg-white/72 px-3 py-1.5 text-[#5f7277] transition-colors hover:border-[#0f6775]/25 hover:text-[#0f6775]"
+                        className="rounded-full border border-[#173544] bg-[#08161d]/88 px-3 py-1.5 text-[#8ea6b2] transition-colors hover:border-[#93f7ff]/30 hover:text-[#d7f5ff]"
                       >
                         {preset.label}
                       </button>
-                    ))}
+                      ))}
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-[#6d7d81]">
-                    <span className="rounded-full border border-[#dbe4df] bg-[#f8f4ea] px-3 py-1.5">
-                      Live crawl telemetry
-                    </span>
-                    <span className="rounded-full border border-[#dbe4df] bg-[#f8f4ea] px-3 py-1.5">
-                      Board-ready report export
-                    </span>
-                    <span className="rounded-full border border-[#dbe4df] bg-[#f8f4ea] px-3 py-1.5">
-                      AI issue-to-fix loop
-                    </span>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-[1.35rem] border border-[#173544] bg-[#0a161d]/92 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-[#93f7ff]">
+                        Execution contract
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#d7f5ff]">
+                        Scout Agent → Audit Agent → Strategy Agent → Market Agent → Narrator Agent
+                      </p>
+                    </div>
+                    <div className="rounded-[1.35rem] border border-[#173544] bg-[#0a161d]/92 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-[#93f7ff]">
+                        Output pack
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#d7f5ff]">
+                        Live crawl telemetry, executive brief, roadmap, issue-to-fix loop, and PDF export.
+                      </p>
+                    </div>
                   </div>
                 </form>
                 <AnimatePresence>
@@ -1648,7 +1886,7 @@ export function SeoStudio() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="mt-4 flex items-start gap-3 rounded-[1.4rem] border border-[#efc8bc] bg-[#fff4ef] p-4 text-sm text-[#a5481f]"
+                      className="mt-4 flex items-start gap-3 rounded-[1.4rem] border border-[#7a3a30] bg-[#26130f] p-4 text-sm text-[#ffd7cf]"
                     >
                       <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                       <span>{error}</span>
@@ -1660,176 +1898,11 @@ export function SeoStudio() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="relative overflow-hidden rounded-[2rem] border border-[#143643]/10 bg-[#102f3c] text-white shadow-[0_45px_140px_-70px_rgba(9,28,36,1)]">
-              <div className="pointer-events-none absolute -right-20 -top-12 size-56 rounded-full bg-[#e9b47f]/15 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-16 left-8 size-48 rounded-full bg-[#2e8f97]/18 blur-3xl" />
-              <CardHeader className="relative z-10">
-                <Badge className="w-fit border-white/15 bg-white/10 text-white">
-                  Agent mission board
-                </Badge>
-                <CardTitle className="text-3xl text-[#f7f0e3]">
-                  {report
-                    ? report.pdf_template_data.report_title
-                    : isLoading
-                      ? `${activeAgent.codename} is driving the audit`
-                      : "What the sponsor sees in real time"}
-                </CardTitle>
-                <CardDescription className="text-base leading-7 text-white/72">
-                  {report
-                    ? report.management_summary.board_verdict
-                    : isLoading
-                      ? buildMissionSummary(liveTelemetry)
-                      : "A live command surface that shows which AI agent is active, what evidence it has collected, what blocked it, and what recommendation comes next."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="relative z-10 space-y-6">
-                {isLoading && !report ? (
-                  <div className="rounded-[1.55rem] border border-white/10 bg-white/8 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/42">
-                          Mission progress
-                        </p>
-                        <p className="mt-2 text-2xl font-semibold text-[#f7f0e3]">
-                          {missionProgress}% complete
-                        </p>
-                      </div>
-                      <Badge className="border-white/12 bg-white/10 text-white/80">
-                        {completedAgents} of 5 agents finished
-                      </Badge>
-                    </div>
-                    <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/10">
-                      <motion.div
-                        animate={{ width: `${missionProgress}%` }}
-                        className="h-full rounded-full bg-[linear-gradient(90deg,#8de0d6,#f3bf88)]"
-                        transition={{ type: "spring", stiffness: 110, damping: 18 }}
-                      />
-                    </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[1.2rem] border border-white/10 bg-white/6 p-3">
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-white/38">
-                          Active agent
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-white">
-                          {activeAgent.mission}
-                        </p>
-                      </div>
-                      <div className="rounded-[1.2rem] border border-white/10 bg-white/6 p-3">
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-white/38">
-                          Next handoff
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-white">
-                          {nextAgent
-                            ? nextAgent.codename
-                            : "Exporting the executive brief"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <MetricTile
-                    label="Signal"
-                    value={
-                      report
-                        ? report.technical_audit.overall_seo_health
-                        : isLoading
-                          ? liveTelemetry.signalValue
-                          : "Waiting"
-                    }
-                    hint={
-                      report
-                        ? report.management_summary.confidence_note
-                        : isLoading
-                          ? liveTelemetry.signalHint
-                          : "Run a crawl to fill the board."
-                    }
-                  />
-                  <MetricTile
-                    label="Pages"
-                    value={
-                      report
-                        ? compactNumber(report.crawl_overview.discovered_internal_pages)
-                        : compactNumber(liveTelemetry.discoveredPages)
-                    }
-                    hint={
-                      report ? "Internal URLs discovered" : `${liveTelemetry.analyzedPages} pages mapped`
-                    }
-                  />
-                  <MetricTile
-                    label={report ? "Speed" : "Blockers"}
-                    value={
-                      report
-                        ? `${report.page_speed.score}/100`
-                        : `${liveTelemetry.crawlIssues.total}`
-                    }
-                    hint={
-                      report
-                        ? report.page_speed.status
-                        : isLoading
-                          ? summarizeIssues(liveTelemetry.crawlIssues)
-                          : "Live once analysis starts"
-                    }
-                  />
-                </div>
-                {isLoading && !report ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[1.25rem] border border-white/10 bg-white/6 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-white/38">
-                        Current target
-                      </p>
-                      <p className="mt-2 text-sm text-white/80">
-                        {liveTelemetry.currentUrl
-                          ? compactPathLabel(liveTelemetry.currentUrl)
-                          : "Waiting for the first page"}
-                      </p>
-                    </div>
-                    <div className="rounded-[1.25rem] border border-white/10 bg-white/6 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-white/38">
-                        Queue health
-                      </p>
-                      <p className="mt-2 text-sm text-white/80">
-                        {liveTelemetry.queueRemaining} URLs waiting · depth {liveTelemetry.crawlDepth}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {stageDefinitions.map((item, index) => {
-                      const Icon = item.icon;
-                      const status = report
-                        ? "completed"
-                        : liveTelemetry.stageStatus[item.id];
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "flex items-start gap-3 rounded-[1.3rem] border px-4 py-3 text-sm backdrop-blur-xl transition-colors",
-                            status === "completed"
-                              ? "border-[#2d7b82]/28 bg-white/12 text-white"
-                              : status === "active"
-                                ? "border-[#f3bf88]/40 bg-white/14 text-white"
-                                : "border-white/10 bg-white/6 text-white/72",
-                          )}
-                        >
-                          <div className="mt-0.5 rounded-full border border-white/15 bg-white/10 p-1">
-                            <Icon className="size-3.5" />
-                          </div>
-                          <div>
-                            <p className="text-[11px] uppercase tracking-[0.26em] text-white/40">
-                              Stage {index + 1}
-                            </p>
-                            <p className="mt-1 leading-6">{item.label}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <AgentConstellation
+              telemetry={liveTelemetry}
+              report={report}
+              isLoading={isLoading}
+            />
           </motion.div>
         </section>
 
@@ -1844,7 +1917,7 @@ export function SeoStudio() {
             className="mt-12 space-y-10"
           >
             <section className="grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
-              <Card className="rounded-[2rem] border border-[#133341]/12 bg-[#102f3c] text-white shadow-[0_45px_140px_-74px_rgba(9,28,36,0.98)]">
+              <Card className="signal-display rounded-[2rem] border border-[#133341]/12 bg-[#102f3c] text-white shadow-[0_45px_140px_-74px_rgba(9,28,36,0.98)]">
                 <CardHeader className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Badge className="border-white/15 bg-white/10 text-white">
@@ -1911,15 +1984,15 @@ export function SeoStudio() {
                 ].map(([label, value, hint]) => (
                   <div
                     key={label}
-                    className="rounded-[1.6rem] border border-white/55 bg-white/72 p-5 shadow-[0_18px_45px_-35px_rgba(17,48,60,0.55)] backdrop-blur-xl"
+                    className="rounded-[1.6rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 p-5 shadow-[0_18px_45px_-35px_rgba(17,48,60,0.55)] backdrop-blur-xl"
                   >
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6a726f]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea6b2]">
                       {label}
                     </p>
-                    <p className="mt-3 text-lg leading-7 font-semibold text-[#11232d]">
+                    <p className="mt-3 text-lg leading-7 font-semibold text-[#eef9ff]">
                       {value}
                     </p>
-                    <p className="mt-2 text-sm text-[#66757d]">{hint}</p>
+                    <p className="mt-2 text-sm text-[#8ea6b2]">{hint}</p>
                   </div>
                 ))}
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1947,7 +2020,7 @@ export function SeoStudio() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-5">
                 <TabsList
                   variant="line"
-                  className="w-full justify-start overflow-x-auto rounded-full border border-white/55 bg-white/70 p-1 backdrop-blur-xl"
+                  className="w-full justify-start overflow-x-auto rounded-full border border-[#7ef0ff]/12 bg-[#08161d]/82 p-1 backdrop-blur-xl"
                 >
                   {[
                     ["findings", "Findings"],
@@ -1968,12 +2041,12 @@ export function SeoStudio() {
                 </TabsList>
 
                 <TabsContent value="findings" className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                  <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                  <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                     <CardHeader>
-                      <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                      <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                         Priority actions
                       </Badge>
-                      <CardTitle className="text-2xl text-[#11232d]">
+                      <CardTitle className="text-2xl text-[#eef9ff]">
                         The first moves the report would put in front of leadership.
                       </CardTitle>
                     </CardHeader>
@@ -1981,27 +2054,27 @@ export function SeoStudio() {
                       {priorityActions.map((action: PdfPriorityAction) => (
                         <div
                           key={`${action.priority}-${action.headline}`}
-                          className="rounded-[1.4rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-4"
+                          className="rounded-[1.4rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                         >
                           <Badge className={cn("border", priorityStyles(action.priority))}>
                             {action.priority}
                           </Badge>
-                          <h3 className="mt-3 text-lg font-semibold text-[#11232d]">
+                          <h3 className="mt-3 text-lg font-semibold text-[#eef9ff]">
                             {action.headline}
                           </h3>
-                          <p className="mt-2 text-sm leading-6 text-[#627379]">{action.action}</p>
-                          <p className="mt-3 text-sm leading-6 text-[#0e5d6f]">{action.business_impact}</p>
+                          <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">{action.action}</p>
+                          <p className="mt-3 text-sm leading-6 text-[#93f7ff]">{action.business_impact}</p>
                         </div>
                       ))}
                     </CardContent>
                   </Card>
 
-                  <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                  <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                     <CardHeader>
-                      <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                      <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                         Technical findings
                       </Badge>
-                      <CardTitle className="text-2xl text-[#11232d]">
+                      <CardTitle className="text-2xl text-[#eef9ff]">
                         The frontend sorts the raw audit into action-ready cards.
                       </CardTitle>
                     </CardHeader>
@@ -2009,14 +2082,14 @@ export function SeoStudio() {
                       {highlightedFindings.map((finding: TechnicalFinding) => (
                         <div
                           key={`${finding.metric}-${finding.current_value}`}
-                          className="rounded-[1.45rem] border border-[#dfe7e1] bg-white/75 p-4"
+                          className="rounded-[1.45rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                                 {finding.category}
                               </p>
-                              <h3 className="mt-2 text-lg font-semibold text-[#11232d]">
+                              <h3 className="mt-2 text-lg font-semibold text-[#eef9ff]">
                                 {finding.metric}
                               </h3>
                             </div>
@@ -2028,34 +2101,34 @@ export function SeoStudio() {
                             {finding.status}
                           </p>
                           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-[1.2rem] bg-[#f8f2e4] p-3">
-                              <p className="text-xs uppercase tracking-[0.22em] text-[#8b7b65]">
+                            <div className="rounded-[1.2rem] bg-[#0c1d26] p-3">
+                              <p className="text-xs uppercase tracking-[0.22em] text-[#8ea6b2]">
                                 Current value
                               </p>
-                              <p className="mt-2 text-sm leading-6 text-[#394a50]">
+                              <p className="mt-2 text-sm leading-6 text-[#d7f5ff]">
                                 {finding.current_value}
                               </p>
                             </div>
-                            <div className="rounded-[1.2rem] bg-[#eef7f6] p-3">
-                              <p className="text-xs uppercase tracking-[0.22em] text-[#5f7c80]">
+                            <div className="rounded-[1.2rem] bg-[#10232c] p-3">
+                              <p className="text-xs uppercase tracking-[0.22em] text-[#8ea6b2]">
                                 Benchmark
                               </p>
-                              <p className="mt-2 text-sm leading-6 text-[#394a50]">
+                              <p className="mt-2 text-sm leading-6 text-[#d7f5ff]">
                                 {finding.benchmark}
                               </p>
                             </div>
                           </div>
-                          <p className="mt-3 text-sm leading-6 text-[#67787d]">
+                          <p className="mt-3 text-sm leading-6 text-[#8ea6b2]">
                             {finding.business_impact}
                           </p>
                           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                            <p className="max-w-2xl text-sm font-medium text-[#0e5d6f]">
+                            <p className="max-w-2xl text-sm font-medium text-[#93f7ff]">
                               {finding.recommendation}
                             </p>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-full border-[#cdd9d5] bg-white"
+                              className="rounded-full border-[#173544] bg-[#08161d] text-[#d7f5ff] hover:bg-[#0d1e27]"
                               onClick={() => {
                                 setFixIssue(buildFixSeed(finding));
                                 setActiveTab("fix-lab");
@@ -2070,7 +2143,7 @@ export function SeoStudio() {
                               {finding.evidence.slice(0, 2).map((item) => (
                                 <span
                                   key={`${item.url}-${item.observation}`}
-                                  className="rounded-full border border-[#dfe7e1] bg-[#f6f8f5] px-3 py-1.5 text-xs text-[#58686e]"
+                                  className="rounded-full border border-[#173544] bg-[#f6f8f5] px-3 py-1.5 text-xs text-[#58686e]"
                                 >
                                   {item.observation}
                                 </span>
@@ -2084,12 +2157,12 @@ export function SeoStudio() {
                 </TabsContent>
 
                 <TabsContent value="opportunities" className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-                  <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                  <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                     <CardHeader>
-                      <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                      <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                         Market opportunities
                       </Badge>
-                      <CardTitle className="text-2xl text-[#11232d]">
+                      <CardTitle className="text-2xl text-[#eef9ff]">
                         Competitive whitespace the audit thinks you can own next.
                       </CardTitle>
                     </CardHeader>
@@ -2097,37 +2170,37 @@ export function SeoStudio() {
                       {opportunities.map((item: MarketOpportunity) => (
                         <div
                           key={item.keyword}
-                          className="rounded-[1.45rem] border border-[#dfe7e1] bg-white/75 p-4"
+                          className="rounded-[1.45rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <Badge className={cn("border", priorityStyles(item.priority))}>
                               {item.priority}
                             </Badge>
-                            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0e5d6f]">
+                            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-[#93f7ff]">
                               {item.market_opportunity_score}/10 score
                             </span>
                           </div>
-                          <h3 className="mt-4 text-lg font-semibold text-[#11232d]">
+                          <h3 className="mt-4 text-lg font-semibold text-[#eef9ff]">
                             {item.keyword}
                           </h3>
-                          <p className="mt-2 text-sm leading-6 text-[#67787d]">
+                          <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">
                             {item.relevance_to_business}
                           </p>
                           <Separator className="my-4 bg-[#dfe7e1]" />
-                          <p className="text-sm leading-6 text-[#0e5d6f]">{item.business_impact}</p>
-                          <p className="mt-3 text-sm leading-6 text-[#67787d]">{item.recommendation}</p>
+                          <p className="text-sm leading-6 text-[#93f7ff]">{item.business_impact}</p>
+                          <p className="mt-3 text-sm leading-6 text-[#8ea6b2]">{item.recommendation}</p>
                         </div>
                       ))}
                     </CardContent>
                   </Card>
 
                   <div className="grid gap-6">
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Metric snapshots
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Key benchmark readouts pulled from the response.
                         </CardTitle>
                       </CardHeader>
@@ -2135,11 +2208,11 @@ export function SeoStudio() {
                         {metricSummary.map((item: MetricSnapshot) => (
                           <div
                             key={`${item.metric}-${item.current_value}`}
-                            className="grid gap-2 rounded-[1.3rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-4 sm:grid-cols-[1fr_auto] sm:items-center"
+                            className="grid gap-2 rounded-[1.3rem] border border-[#173544] bg-[#0a161d]/92 p-4 sm:grid-cols-[1fr_auto] sm:items-center"
                           >
                             <div>
-                              <p className="text-sm font-semibold text-[#11232d]">{item.metric}</p>
-                              <p className="mt-1 text-sm text-[#66757d]">
+                              <p className="text-sm font-semibold text-[#eef9ff]">{item.metric}</p>
+                              <p className="mt-1 text-sm text-[#8ea6b2]">
                                 {item.current_value} against {item.benchmark}
                               </p>
                             </div>
@@ -2151,12 +2224,12 @@ export function SeoStudio() {
                       </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Data limitations
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Where the report is being transparent about missing context.
                         </CardTitle>
                       </CardHeader>
@@ -2164,16 +2237,16 @@ export function SeoStudio() {
                         {report.data_limitations.map((item) => (
                           <div
                             key={`${item.data_source}-${item.current_status}`}
-                            className="rounded-[1.35rem] border border-[#dfe7e1] bg-white/75 p-4"
+                            className="rounded-[1.35rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                           >
-                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                               {item.data_source}
                             </p>
-                            <p className="mt-2 text-base font-semibold text-[#11232d]">
+                            <p className="mt-2 text-base font-semibold text-[#eef9ff]">
                               {item.current_status}
                             </p>
-                            <p className="mt-2 text-sm leading-6 text-[#67787d]">{item.why_it_matters}</p>
-                            <p className="mt-3 text-sm font-medium leading-6 text-[#0e5d6f]">
+                            <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">{item.why_it_matters}</p>
+                            <p className="mt-3 text-sm font-medium leading-6 text-[#93f7ff]">
                               Next step: {item.next_step}
                             </p>
                           </div>
@@ -2188,7 +2261,7 @@ export function SeoStudio() {
                     <Card
                       key={`${item.timeline}-${item.objective}`}
                       className={cn(
-                        "rounded-[1.9rem] border border-white/60 bg-gradient-to-b backdrop-blur-xl",
+                        "rounded-[1.9rem] border border-[#7ef0ff]/12 bg-gradient-to-b backdrop-blur-xl",
                         toneForRoadmap(item.priority),
                       )}
                     >
@@ -2197,12 +2270,12 @@ export function SeoStudio() {
                           <Badge className={cn("border", priorityStyles(item.priority))}>
                             {item.priority}
                           </Badge>
-                          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0e5d6f]">
+                          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-[#93f7ff]">
                             {item.timeline}
                           </span>
                         </div>
-                        <CardTitle className="text-2xl text-[#11232d]">{item.objective}</CardTitle>
-                        <CardDescription className="text-sm leading-6 text-[#66757d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">{item.objective}</CardTitle>
+                        <CardDescription className="text-sm leading-6 text-[#8ea6b2]">
                           {item.expected_outcome}
                         </CardDescription>
                       </CardHeader>
@@ -2211,7 +2284,7 @@ export function SeoStudio() {
                           {item.actions.map((action) => (
                             <li
                               key={action}
-                              className="rounded-[1.2rem] border border-white/70 bg-white/70 px-4 py-3 text-sm leading-6 text-[#394a50]"
+                              className="rounded-[1.2rem] border border-white/70 bg-[#08161d]/82 px-4 py-3 text-sm leading-6 text-[#d7f5ff]"
                             >
                               {action}
                             </li>
@@ -2224,25 +2297,25 @@ export function SeoStudio() {
 
                 <TabsContent value="keywords" className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
                   <div className="grid gap-6">
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Keyword strategy
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Primary and long-tail targets from the analysis response.
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-5">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                             Primary keywords
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {report.keyword_analysis.primary_keywords.map((keyword) => (
                               <span
                                 key={keyword}
-                                className="rounded-full border border-[#d9e1dc] bg-[#f8faf8] px-3 py-1.5 text-sm text-[#0e5d6f]"
+                                className="rounded-full border border-[#173544] bg-[#0b1820] px-3 py-1.5 text-sm text-[#93f7ff]"
                               >
                                 {keyword}
                               </span>
@@ -2250,14 +2323,14 @@ export function SeoStudio() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                             Long-tail keywords
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {report.keyword_analysis.long_tail_keywords.map((keyword) => (
                               <span
                                 key={keyword}
-                                className="rounded-full border border-[#eadbbd] bg-[#fff7ea] px-3 py-1.5 text-sm text-[#8b6224]"
+                                className="rounded-full border border-[#75541c] bg-[#21180a] px-3 py-1.5 text-sm text-[#ffd696]"
                               >
                                 {keyword}
                               </span>
@@ -2267,12 +2340,12 @@ export function SeoStudio() {
                       </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Intent map
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Informational, transactional, and navigational buckets.
                         </CardTitle>
                       </CardHeader>
@@ -2293,14 +2366,14 @@ export function SeoStudio() {
                         ].map(({ label, values }) => (
                           <div
                             key={label}
-                            className="rounded-[1.35rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-4"
+                            className="rounded-[1.35rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                           >
-                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                               {label}
                             </p>
                             <div className="mt-3 space-y-2">
                               {values.map((value) => (
-                                <div key={value} className="rounded-full bg-white/85 px-3 py-2 text-sm text-[#394a50]">
+                                <div key={value} className="rounded-full bg-[#0b1b24]/90 px-3 py-2 text-sm text-[#d7f5ff]">
                                   {value}
                                 </div>
                               ))}
@@ -2312,12 +2385,12 @@ export function SeoStudio() {
                   </div>
 
                   <div className="grid gap-6">
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           AI insights
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Leadership-facing synthesis from the backend insight block.
                         </CardTitle>
                       </CardHeader>
@@ -2326,37 +2399,37 @@ export function SeoStudio() {
                           report.ai_insights.insights.map((insight) => (
                             <div
                               key={`${insight.issue}-${insight.priority}`}
-                              className="rounded-[1.4rem] border border-[#dfe7e1] bg-white/75 p-4"
+                              className="rounded-[1.4rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
-                                <p className="text-lg font-semibold text-[#11232d]">{insight.issue}</p>
+                                <p className="text-lg font-semibold text-[#eef9ff]">{insight.issue}</p>
                                 <Badge className={cn("border", priorityStyles(insight.priority))}>
                                   {insight.priority}
                                 </Badge>
                               </div>
-                              <p className="mt-2 text-sm font-medium text-[#0e5d6f]">
+                              <p className="mt-2 text-sm font-medium text-[#93f7ff]">
                                 Impact: {insight.impact}
                               </p>
-                              <p className="mt-3 text-sm leading-6 text-[#67787d]">{insight.explanation}</p>
-                              <p className="mt-3 text-sm font-medium leading-6 text-[#394a50]">
+                              <p className="mt-3 text-sm leading-6 text-[#8ea6b2]">{insight.explanation}</p>
+                              <p className="mt-3 text-sm font-medium leading-6 text-[#d7f5ff]">
                                 {insight.recommendation}
                               </p>
                             </div>
                           ))
                         ) : (
-                          <div className="rounded-[1.4rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-4 text-sm leading-6 text-[#67787d]">
+                          <div className="rounded-[1.4rem] border border-[#173544] bg-[#0a161d]/92 p-4 text-sm leading-6 text-[#8ea6b2]">
                             No AI insight block was returned for this run.
                           </div>
                         )}
                       </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Content strategy
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Blog briefs and guest post angles suggested by the backend.
                         </CardTitle>
                       </CardHeader>
@@ -2364,15 +2437,15 @@ export function SeoStudio() {
                         {report.content_strategy.blog_suggestions.map((post) => (
                           <div
                             key={post.title}
-                            className="rounded-[1.4rem] border border-[#dfe7e1] bg-white/75 p-4"
+                            className="rounded-[1.4rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                           >
-                            <p className="text-lg font-semibold text-[#11232d]">{post.title}</p>
-                            <p className="mt-2 text-sm text-[#0e5d6f]">
+                            <p className="text-lg font-semibold text-[#eef9ff]">{post.title}</p>
+                            <p className="mt-2 text-sm text-[#93f7ff]">
                               {post.target_audience} · {post.search_intent}
                             </p>
                             <div className="mt-3 space-y-2">
                               {post.outline.map((point) => (
-                                <div key={point} className="rounded-full bg-[#f8f4ea] px-3 py-2 text-sm text-[#4f6168]">
+                                <div key={point} className="rounded-full bg-[#0b1b24]/90 px-3 py-2 text-sm text-[#d7f5ff]">
                                   {point}
                                 </div>
                               ))}
@@ -2384,7 +2457,7 @@ export function SeoStudio() {
                           {report.content_strategy.guest_post_titles.map((title) => (
                             <span
                               key={title}
-                              className="rounded-full border border-[#d9e1dc] bg-[#f8faf8] px-3 py-1.5 text-sm text-[#0e5d6f]"
+                              className="rounded-full border border-[#173544] bg-[#0b1820] px-3 py-1.5 text-sm text-[#93f7ff]"
                             >
                               {title}
                             </span>
@@ -2396,12 +2469,12 @@ export function SeoStudio() {
                 </TabsContent>
 
                 <TabsContent value="pages" className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-                  <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                  <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                     <CardHeader>
-                      <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                      <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                         Sampled pages
                       </Badge>
-                      <CardTitle className="text-2xl text-[#11232d]">
+                      <CardTitle className="text-2xl text-[#eef9ff]">
                         Representative pages surfaced by the crawl.
                       </CardTitle>
                     </CardHeader>
@@ -2409,26 +2482,26 @@ export function SeoStudio() {
                       {pageSummaries.map((page: PageSummary) => (
                         <div
                           key={page.url}
-                          className="rounded-[1.45rem] border border-[#dfe7e1] bg-white/75 p-4"
+                          className="rounded-[1.45rem] border border-[#173544] bg-[#0a161d]/92 p-4"
                         >
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                             {page.page_type}
                           </p>
-                          <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-[#11232d]">
+                          <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-[#eef9ff]">
                             {page.title || page.url}
                           </h3>
-                          <p className="mt-2 text-sm leading-6 text-[#67787d]">{page.key_issue}</p>
-                          <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#394a50]">
-                            <div className="rounded-[1rem] bg-[#fbf7ef] p-3">
-                              <p className="text-xs uppercase tracking-[0.22em] text-[#8b7b65]">Words</p>
+                          <p className="mt-2 text-sm leading-6 text-[#8ea6b2]">{page.key_issue}</p>
+                          <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#d7f5ff]">
+                            <div className="rounded-[1rem] bg-[#0b1b24]/90 p-3">
+                              <p className="text-xs uppercase tracking-[0.22em] text-[#8ea6b2]">Words</p>
                               <p className="mt-2 font-medium">{page.word_count}</p>
                             </div>
-                            <div className="rounded-[1rem] bg-[#eef7f6] p-3">
-                              <p className="text-xs uppercase tracking-[0.22em] text-[#5f7c80]">Authority</p>
+                            <div className="rounded-[1rem] bg-[#10232c] p-3">
+                              <p className="text-xs uppercase tracking-[0.22em] text-[#8ea6b2]">Authority</p>
                               <p className="mt-2 font-medium">{page.page_authority}</p>
                             </div>
                           </div>
-                          <p className="mt-4 text-sm font-medium text-[#0e5d6f]">
+                          <p className="mt-4 text-sm font-medium text-[#93f7ff]">
                             SEO health: {page.seo_health}
                           </p>
                         </div>
@@ -2437,12 +2510,12 @@ export function SeoStudio() {
                   </Card>
 
                   <div className="grid gap-6">
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Link profile
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Internal, external, and backlink context at a glance.
                         </CardTitle>
                       </CardHeader>
@@ -2459,15 +2532,15 @@ export function SeoStudio() {
                             hint={report.link_analysis.backlinks.backlink_strength}
                           />
                         </div>
-                        <div className="rounded-[1.4rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                        <div className="rounded-[1.4rem] border border-[#173544] bg-[#0a161d]/92 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                             External domains sampled
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {report.link_analysis.external.domains.slice(0, 10).map((domain) => (
                               <span
                                 key={domain}
-                                className="rounded-full border border-[#e1d7c4] bg-white/85 px-3 py-1.5 text-sm text-[#6c5b47]"
+                                className="rounded-full border border-[#e1d7c4] bg-[#0b1b24]/90 px-3 py-1.5 text-sm text-[#d7f5ff]"
                               >
                                 {domain}
                               </span>
@@ -2477,12 +2550,12 @@ export function SeoStudio() {
                       </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                    <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                       <CardHeader>
-                        <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                        <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                           Appendix notes
                         </Badge>
-                        <CardTitle className="text-2xl text-[#11232d]">
+                        <CardTitle className="text-2xl text-[#eef9ff]">
                           Crawl caveats and evidence context from the appendix.
                         </CardTitle>
                       </CardHeader>
@@ -2490,7 +2563,7 @@ export function SeoStudio() {
                         {report.detailed_appendix.evidence_notes.map((note) => (
                           <div
                             key={note}
-                            className="rounded-[1.3rem] border border-[#dfe7e1] bg-white/75 px-4 py-3 text-sm leading-6 text-[#67787d]"
+                            className="rounded-[1.3rem] border border-[#173544] bg-[#0a161d]/92 px-4 py-3 text-sm leading-6 text-[#8ea6b2]"
                           >
                             {note}
                           </div>
@@ -2501,15 +2574,15 @@ export function SeoStudio() {
                 </TabsContent>
 
                 <TabsContent value="fix-lab" className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
-                  <Card className="rounded-[1.9rem] border border-white/60 bg-white/72 backdrop-blur-xl">
+                  <Card className="rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#08161d]/88 backdrop-blur-xl">
                     <CardHeader>
-                      <Badge className="w-fit border-[#d6dfda] bg-[#f8faf8] text-[#0e5d6f]">
+                      <Badge className="w-fit border-[#173544] bg-[#0b1820] text-[#93f7ff]">
                         AI fix lab
                       </Badge>
-                      <CardTitle className="text-2xl text-[#11232d]">
+                      <CardTitle className="text-2xl text-[#eef9ff]">
                         Hand the backend a precise issue and get back current versus fixed code.
                       </CardTitle>
-                      <CardDescription className="text-sm leading-6 text-[#66757d]">
+                      <CardDescription className="text-sm leading-6 text-[#8ea6b2]">
                         Use one of the findings as a seed, or type a more precise engineering task.
                       </CardDescription>
                     </CardHeader>
@@ -2517,13 +2590,13 @@ export function SeoStudio() {
                       <Textarea
                         value={fixIssue}
                         onChange={(event) => setFixIssue(event.target.value)}
-                        className="min-h-40 rounded-[1.4rem] border-[#d6e0dc] bg-white/90 px-4 py-3 text-sm shadow-inner shadow-[#f1e8d7]"
+                        className="min-h-40 rounded-[1.4rem] border-[#d6e0dc] bg-[#06131a]/92 px-4 py-3 text-sm shadow-inner shadow-[#f1e8d7]"
                         placeholder="Example: Meta description is missing on the homepage and should be replaced with a compelling 150-character summary."
                       />
                       <Button
                         onClick={handleGenerateFix}
                         disabled={isFixing}
-                        className="h-11 rounded-[1.2rem] bg-[#0f6775] px-6 text-white hover:bg-[#0d5561]"
+                        className="h-11 rounded-[1.2rem] bg-[linear-gradient(135deg,#7ef0ff,#b6ff5c)] px-6 text-[#041015] shadow-[0_18px_45px_-24px_rgba(126,240,255,0.6)] hover:brightness-105"
                       >
                         {isFixing ? (
                           <>
@@ -2537,8 +2610,8 @@ export function SeoStudio() {
                           </>
                         )}
                       </Button>
-                      <div className="rounded-[1.35rem] border border-[#dfe7e1] bg-[#fbf7ef]/80 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708185]">
+                      <div className="rounded-[1.35rem] border border-[#173544] bg-[#0a161d]/92 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8ea6b2]">
                           Quick picks from the audit
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -2547,7 +2620,7 @@ export function SeoStudio() {
                               key={`${finding.metric}-${finding.priority}`}
                               type="button"
                               onClick={() => setFixIssue(buildFixSeed(finding))}
-                              className="rounded-full border border-[#dce6e2] bg-white px-3 py-2 text-left text-xs text-[#0e5d6f] transition-colors hover:border-[#0e5d6f]/30 hover:bg-[#f3fbfb]"
+                              className="rounded-full border border-[#173544] bg-[#08161d] px-3 py-2 text-left text-xs text-[#d7f5ff] transition-colors hover:border-[#93f7ff]/30 hover:bg-[#0d1e27]"
                             >
                               {finding.metric}
                             </button>
@@ -2557,7 +2630,7 @@ export function SeoStudio() {
                     </CardContent>
                   </Card>
 
-                  <Card className="rounded-[1.9rem] border border-white/60 bg-[#102f3c] text-white shadow-[0_45px_140px_-74px_rgba(9,28,36,0.98)]">
+                  <Card className="signal-display rounded-[1.9rem] border border-[#7ef0ff]/12 bg-[#102f3c] text-white shadow-[0_45px_140px_-74px_rgba(9,28,36,0.98)]">
                     <CardHeader>
                       <Badge className="w-fit border-white/15 bg-white/10 text-white">
                         Generated output
@@ -2584,11 +2657,11 @@ export function SeoStudio() {
                                 {fixResult.current_code}
                               </pre>
                             </div>
-                            <div className="rounded-[1.5rem] border border-[#2e8f97]/25 bg-[#103744] p-4">
-                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8de0d6]">
+                            <div className="rounded-[1.5rem] border border-[#1f5c68] bg-[#081920] p-4">
+                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#93f7ff]">
                                 Fixed code
                               </p>
-                              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[13px] leading-6 text-[#effcf9]">
+                              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[13px] leading-6 text-[#d7f5ff]">
                                 {fixResult.fixed_code}
                               </pre>
                             </div>

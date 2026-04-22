@@ -252,6 +252,12 @@ def build_pdf_template_data(
     crawl_data: dict,
     site_profile: dict,
     data_limitations: list[dict],
+    recommended_roadmap: list[dict],
+    content_strategy: dict,
+    keyword_analysis: dict,
+    page_speed: dict,
+    link_analysis: dict,
+    ai_insights: dict,
 ) -> dict:
     company_name = _safe_company_name(site_profile)
     audience_label = site_profile.get("audience_label") or DEFAULT_REPORT_AUDIENCE
@@ -300,6 +306,7 @@ def build_pdf_template_data(
         "generated_on": date.today().isoformat(),
         "executive_summary": executive_summary,
         "board_verdict": management_summary.get("board_verdict", ""),
+        "management_summary": management_summary,
         "hero_metrics": [
             {
                 "label": "Overall SEO Health",
@@ -320,7 +327,20 @@ def build_pdf_template_data(
         ],
         "crawl_overview": crawl_overview,
         "priority_actions": priority_actions,
-        "market_opportunities": market_opportunities[:3],
+        "market_opportunities": market_opportunities[:5],
+        "technical_findings": findings,
+        "metric_summary": audit_result.get("metric_summary", []),
+        "recommended_roadmap": recommended_roadmap,
+        "content_strategy": content_strategy,
+        "keyword_analysis": keyword_analysis,
+        "page_speed": page_speed,
+        "link_analysis": link_analysis,
+        "ai_insights": ai_insights.get("insights", []),
+        "sampled_pages": audit_result.get("page_summaries", []),
+        "competitor_sample_size": comparison_result.get("competitor_sample_size")
+        or len(comparison_result.get("top_competitors", [])),
+        "keyword_overlap_score": comparison_result.get("keyword_overlap_score", "0%"),
+        "content_gap_ratio": comparison_result.get("content_gap_ratio", "0%"),
         "data_limitations": data_limitations,
         "company_name": company_name,
         "business_summary": business_summary,

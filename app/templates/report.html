@@ -4,55 +4,933 @@
     <meta charset="UTF-8">
     <title>{{ report_title }}</title>
     <style>
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 30px; }
-        h2 { color: #2980b9; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .score-card { background-color: #f8f9fa; border-left: 5px solid #27ae60; padding: 20px; font-size: 24px; font-weight: bold; margin-bottom: 30px; }
-        .summary { font-size: 16px; line-height: 1.6; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #34495e; color: white; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .priority-High { color: #e74c3c; font-weight: bold; }
-        .priority-Medium { color: #f39c12; font-weight: bold; }
-        .priority-Low { color: #27ae60; font-weight: bold; }
-        .date { color: #7f8c8d; font-size: 14px; text-align: right; }
+        @page {
+            size: A4;
+            margin: 14mm 12mm 16mm 12mm;
+
+            @bottom-right {
+                content: "Page " counter(page);
+                font-size: 9px;
+                color: #617684;
+            }
+        }
+
+        :root {
+            --ink: #10212b;
+            --muted: #586c79;
+            --line: #d8e3ea;
+            --soft-line: #e8eef2;
+            --surface: #f7fafc;
+            --surface-strong: #ecf3f8;
+            --panel: #ffffff;
+            --teal: #0b6d79;
+            --cyan: #8be8ff;
+            --glow: #e5fff5;
+            --amber: #ffbf6e;
+            --rose: #ef7f65;
+            --green: #2b8f67;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif;
+            font-size: 10.8px;
+            line-height: 1.52;
+            background: #ffffff;
+            overflow-wrap: anywhere;
+        }
+
+        h1, h2, h3, h4, p {
+            margin: 0;
+        }
+
+        .cover {
+            position: relative;
+            overflow: hidden;
+            padding: 18mm 16mm;
+            min-height: 252mm;
+            color: #effbff;
+            background:
+                radial-gradient(circle at top left, rgba(139, 232, 255, 0.26), transparent 28%),
+                radial-gradient(circle at top right, rgba(255, 191, 110, 0.18), transparent 24%),
+                linear-gradient(160deg, #071218 0%, #0d2430 45%, #0a1d27 100%);
+            border-radius: 24px;
+        }
+
+        .cover::before,
+        .cover::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .cover::before {
+            background-image:
+                linear-gradient(rgba(139, 232, 255, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(139, 232, 255, 0.08) 1px, transparent 1px);
+            background-size: 26px 26px;
+            opacity: 0.28;
+        }
+
+        .cover::after {
+            background:
+                linear-gradient(120deg, rgba(139, 232, 255, 0.14), transparent 34%),
+                linear-gradient(300deg, rgba(255, 191, 110, 0.1), transparent 34%);
+            mix-blend-mode: screen;
+        }
+
+        .eyebrow {
+            display: inline-block;
+            margin-bottom: 14px;
+            padding: 6px 10px;
+            border: 1px solid rgba(139, 232, 255, 0.2);
+            border-radius: 999px;
+            background: rgba(139, 232, 255, 0.08);
+            color: #97efff;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+        }
+
+        .cover h1 {
+            max-width: 470px;
+            font-size: 28px;
+            line-height: 1.04;
+            letter-spacing: -0.04em;
+        }
+
+        .cover-subtitle {
+            margin-top: 14px;
+            max-width: 430px;
+            font-size: 12px;
+            line-height: 1.7;
+            color: rgba(239, 251, 255, 0.76);
+        }
+
+        .cover-meta {
+            margin-top: 24px;
+            font-size: 10px;
+            color: rgba(239, 251, 255, 0.76);
+        }
+
+        .meta-row {
+            margin-top: 4px;
+        }
+
+        .cover-summary {
+            margin-top: 24px;
+            padding: 16px 18px;
+            border: 1px solid rgba(139, 232, 255, 0.16);
+            border-radius: 18px;
+            background: rgba(8, 19, 25, 0.48);
+        }
+
+        .cover-summary h2 {
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #8be8ff;
+        }
+
+        .cover-summary p {
+            margin-top: 12px;
+            font-size: 13px;
+            line-height: 1.8;
+            color: rgba(239, 251, 255, 0.84);
+        }
+
+        .inline-grid {
+            margin-top: 18px;
+            font-size: 0;
+        }
+
+        .metric-card,
+        .summary-card,
+        .signal-card,
+        .roadmap-card,
+        .opportunity-card,
+        .blog-card,
+        .insight-card,
+        .limitation-card,
+        .finding-card {
+            display: inline-block;
+            width: calc(50% - 10px);
+            margin: 5px;
+            vertical-align: top;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .metric-card {
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(8, 19, 25, 0.58);
+            border: 1px solid rgba(139, 232, 255, 0.16);
+        }
+
+        .metric-label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: rgba(239, 251, 255, 0.56);
+        }
+
+        .metric-value {
+            margin-top: 8px;
+            font-size: 21px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .metric-note {
+            margin-top: 8px;
+            font-size: 10px;
+            color: rgba(239, 251, 255, 0.72);
+        }
+
+        .page-break {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .section {
+            margin-top: 18px;
+        }
+
+        .section-header {
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .section-kicker {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--teal);
+        }
+
+        .section-title {
+            margin-top: 6px;
+            font-size: 22px;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--ink);
+        }
+
+        .section-description {
+            margin-top: 8px;
+            max-width: 520px;
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.7;
+        }
+
+        .summary-card,
+        .signal-card,
+        .roadmap-card,
+        .opportunity-card,
+        .blog-card,
+        .insight-card,
+        .limitation-card,
+        .finding-card {
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel);
+        }
+
+        .summary-card h3,
+        .signal-card h3,
+        .roadmap-card h3,
+        .opportunity-card h3,
+        .blog-card h3,
+        .insight-card h3,
+        .limitation-card h3,
+        .finding-card h3 {
+            font-size: 12px;
+            color: var(--ink);
+        }
+
+        .card-kicker {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--teal);
+        }
+
+        .card-copy {
+            margin-top: 8px;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .hero-strip {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: var(--surface-strong);
+            border: 1px solid var(--soft-line);
+        }
+
+        .hero-strip strong {
+            color: var(--ink);
+        }
+
+        .signal-stack,
+        .list-stack {
+            margin-top: 10px;
+        }
+
+        .stack-item {
+            margin-top: 8px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--soft-line);
+        }
+
+        .stack-item:first-child {
+            margin-top: 0;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 3px 7px;
+            border-radius: 999px;
+            font-size: 8.5px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+
+        .pill-high {
+            background: #fff0eb;
+            border-color: #ffd2c6;
+            color: #aa4f36;
+        }
+
+        .pill-medium {
+            background: #fff7e8;
+            border-color: #ffddaf;
+            color: #8b6224;
+        }
+
+        .pill-low {
+            background: #ecfbf3;
+            border-color: #c6ecd8;
+            color: #2e7854;
+        }
+
+        .signal-row {
+            margin-top: 10px;
+            font-size: 0;
+        }
+
+        .signal-card {
+            width: calc(33.333% - 10px);
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            border-spacing: 0;
+            page-break-inside: auto;
+            table-layout: fixed;
+        }
+
+        .table thead {
+            display: table-header-group;
+        }
+
+        .table th,
+        .table td {
+            padding: 10px 9px;
+            vertical-align: top;
+            border-bottom: 1px solid var(--soft-line);
+            text-align: left;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .table th {
+            font-size: 9px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+            background: var(--surface-strong);
+        }
+
+        .table td {
+            color: var(--ink);
+            font-size: 10.2px;
+            line-height: 1.5;
+        }
+
+        .table tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .subtle {
+            color: var(--muted);
+        }
+
+        .strong {
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .finding-card {
+            width: calc(100% - 10px);
+        }
+
+        .finding-meta {
+            margin-top: 10px;
+            font-size: 0;
+        }
+
+        .finding-block {
+            display: inline-block;
+            width: calc(50% - 8px);
+            margin: 4px;
+            vertical-align: top;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--soft-line);
+        }
+
+        .finding-block-label {
+            font-size: 8.5px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .finding-block-copy {
+            margin-top: 6px;
+            font-size: 10.1px;
+            color: var(--ink);
+            line-height: 1.55;
+        }
+
+        .evidence-list {
+            margin-top: 10px;
+            padding-left: 16px;
+        }
+
+        .evidence-list li {
+            margin-top: 4px;
+            color: var(--muted);
+        }
+
+        .roadmap-card h3,
+        .opportunity-card h3,
+        .blog-card h3,
+        .insight-card h3 {
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .roadmap-card ul,
+        .blog-card ul,
+        .keyword-list ul {
+            margin: 10px 0 0 16px;
+            padding: 0;
+        }
+
+        .roadmap-card li,
+        .blog-card li,
+        .keyword-list li {
+            margin-top: 4px;
+            color: var(--muted);
+        }
+
+        .two-column {
+            margin-top: 10px;
+            font-size: 0;
+        }
+
+        .two-column > .column {
+            display: inline-block;
+            width: calc(50% - 8px);
+            margin: 4px;
+            vertical-align: top;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .keyword-list,
+        .link-panel {
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel);
+        }
+
+        .keyword-chip {
+            display: inline-block;
+            margin: 5px 6px 0 0;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: var(--surface-strong);
+            border: 1px solid var(--soft-line);
+            color: var(--ink);
+            font-size: 9px;
+        }
+
+        .footer-note {
+            margin-top: 18px;
+            font-size: 9.5px;
+            color: var(--muted);
+        }
     </style>
 </head>
 <body>
-    <div class="date">Generated on: {{ generated_on }}</div>
-    <h1>{{ report_title }}</h1>
+    <section class="cover">
+        <div class="eyebrow">SEO Spy Agent Report</div>
+        <h1>{{ report_title }}</h1>
+        <p class="cover-subtitle">
+            AI-assisted SEO intelligence for {{ company_name }}. This export packages the crawl, audit,
+            competitive benchmark, and action plan into one sponsor-facing document.
+        </p>
 
-    <div class="score-card">
-        Sitewide SEO Score: {{ hero_metrics[0].value if hero_metrics else 'N/A' }}
-    </div>
+        <div class="cover-meta">
+            <div class="meta-row"><strong>Prepared for:</strong> {{ prepared_for }}</div>
+            <div class="meta-row"><strong>Website:</strong> {{ website }}</div>
+            <div class="meta-row"><strong>Generated on:</strong> {{ generated_on }}</div>
+            <div class="meta-row"><strong>Business profile:</strong> {{ business_summary }}</div>
+        </div>
 
-    <h2>Executive Summary</h2>
-    <div class="summary">
-        {{ executive_summary }}
-    </div>
+        <div class="cover-summary">
+            <h2>Executive Summary</h2>
+            <p>{{ executive_summary }}</p>
+        </div>
 
-    <h2>Priority Actions</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Headline</th>
-                <th>Priority</th>
-                <th>Business Impact</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for action in priority_actions %}
-            <tr>
-                <td><strong>{{ action.headline }}</strong></td>
-                <td class="priority-{{ action.priority }}">{{ action.priority }}</td>
-                <td>{{ action.business_impact }}</td>
-                <td>{{ action.action }}</td>
-            </tr>
+        <div class="inline-grid">
+            {% for metric in hero_metrics %}
+            <div class="metric-card">
+                <div class="metric-label">{{ metric.label }}</div>
+                <div class="metric-value">{{ metric.value }}</div>
+                <div class="metric-note">{{ board_verdict }}</div>
+            </div>
             {% endfor %}
-        </tbody>
-    </table>
+        </div>
+    </section>
 
+    <section class="section page-break">
+        <div class="section-header">
+            <div class="section-kicker">Management Readout</div>
+            <h2 class="section-title">What the board should know first</h2>
+            <p class="section-description">
+                The following blocks compress the entire audit into the business-critical story:
+                what is working, what is hurting visibility, and where the cleanest growth angle sits.
+            </p>
+        </div>
+
+        <div class="inline-grid">
+            <div class="summary-card">
+                <div class="card-kicker">Board verdict</div>
+                <h3>{{ management_summary.board_verdict }}</h3>
+                <p class="card-copy">{{ executive_summary }}</p>
+            </div>
+            <div class="summary-card">
+                <div class="card-kicker">Strongest asset</div>
+                <h3>{{ management_summary.strongest_asset }}</h3>
+                <p class="card-copy">{{ management_summary.confidence_note }}</p>
+            </div>
+            <div class="summary-card">
+                <div class="card-kicker">Biggest risk</div>
+                <h3>{{ management_summary.biggest_risk }}</h3>
+            </div>
+            <div class="summary-card">
+                <div class="card-kicker">Growth opportunity</div>
+                <h3>{{ management_summary.growth_opportunity }}</h3>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-kicker">Operational Snapshot</div>
+                <h2 class="section-title">Crawl, benchmark, and performance context</h2>
+            </div>
+            <div class="signal-row">
+                {% for metric in crawl_overview %}
+                <div class="signal-card">
+                    <div class="card-kicker">{{ metric.label }}</div>
+                    <h3>{{ metric.value }}</h3>
+                </div>
+                {% endfor %}
+                <div class="signal-card">
+                    <div class="card-kicker">Page speed</div>
+                    <h3>{{ page_speed.score }}/100</h3>
+                    <p class="card-copy">
+                        {{ page_speed.status }} · {{ page_speed.response_time }}s response · {{ page_speed.page_size_kb }} KB
+                    </p>
+                </div>
+                <div class="signal-card">
+                    <div class="card-kicker">Market comparison</div>
+                    <h3>{{ content_gap_ratio }} gap</h3>
+                    <p class="card-copy">
+                        {{ competitor_sample_size }} competitor domains sampled · {{ keyword_overlap_score }} keyword overlap
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section page-break">
+        <div class="section-header">
+            <div class="section-kicker">Priority Actions</div>
+            <h2 class="section-title">Highest-value fixes from the audit</h2>
+            <p class="section-description">
+                These are the first moves the AI audit would take into execution. They are ordered for business impact and board visibility.
+            </p>
+        </div>
+
+        <div class="inline-grid">
+            {% for action in priority_actions %}
+            <div class="finding-card">
+                <div>
+                    <span class="pill {% if action.priority == 'High' %}pill-high{% elif action.priority == 'Medium' %}pill-medium{% else %}pill-low{% endif %}">
+                        {{ action.priority }} Priority
+                    </span>
+                </div>
+                <h3 style="margin-top: 10px;">{{ action.headline }}</h3>
+                <div class="hero-strip"><strong>Business impact:</strong> {{ action.business_impact }}</div>
+                <p class="card-copy">{{ action.action }}</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-kicker">Metric Summary</div>
+                <h2 class="section-title">How the site scored against core benchmarks</h2>
+            </div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Current Value</th>
+                        <th>Benchmark</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for metric in metric_summary %}
+                    <tr>
+                        <td class="strong">{{ metric.metric }}</td>
+                        <td>{{ metric.current_value }}</td>
+                        <td>{{ metric.benchmark }}</td>
+                        <td>{{ metric.status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="section page-break">
+        <div class="section-header">
+            <div class="section-kicker">Technical Audit</div>
+            <h2 class="section-title">Detailed findings and recommended remediations</h2>
+            <p class="section-description">
+                Every finding below includes its current state, benchmark target, business consequence, and recommended fix path.
+            </p>
+        </div>
+
+        <div class="inline-grid">
+            {% for finding in technical_findings %}
+            <div class="finding-card">
+                <div>
+                    <span class="pill {% if finding.priority == 'High' %}pill-high{% elif finding.priority == 'Medium' %}pill-medium{% else %}pill-low{% endif %}">
+                        {{ finding.priority }}
+                    </span>
+                </div>
+                <h3 style="margin-top: 10px;">{{ finding.metric }}</h3>
+                <p class="card-copy">{{ finding.category }} · {{ finding.status }}</p>
+
+                <div class="finding-meta">
+                    <div class="finding-block">
+                        <div class="finding-block-label">Current state</div>
+                        <div class="finding-block-copy">{{ finding.current_value }}</div>
+                    </div>
+                    <div class="finding-block">
+                        <div class="finding-block-label">Benchmark</div>
+                        <div class="finding-block-copy">{{ finding.benchmark }}</div>
+                    </div>
+                    <div class="finding-block">
+                        <div class="finding-block-label">Business impact</div>
+                        <div class="finding-block-copy">{{ finding.business_impact }}</div>
+                    </div>
+                    <div class="finding-block">
+                        <div class="finding-block-label">Recommendation</div>
+                        <div class="finding-block-copy">{{ finding.recommendation }}</div>
+                    </div>
+                </div>
+
+                {% if finding.evidence %}
+                <ul class="evidence-list">
+                    {% for evidence in finding.evidence[:3] %}
+                    <li><strong>{{ evidence.url }}</strong> — {{ evidence.observation }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="section page-break">
+        <div class="section-header">
+            <div class="section-kicker">Growth Plan</div>
+            <h2 class="section-title">Roadmap, market opportunities, and content strategy</h2>
+        </div>
+
+        <div class="inline-grid">
+            {% for item in recommended_roadmap %}
+            <div class="roadmap-card">
+                <div>
+                    <span class="pill {% if item.priority == 'High' %}pill-high{% elif item.priority == 'Medium' %}pill-medium{% else %}pill-low{% endif %}">
+                        {{ item.timeline }}
+                    </span>
+                </div>
+                <h3>{{ item.objective }}</h3>
+                <p class="card-copy">{{ item.expected_outcome }}</p>
+                <ul>
+                    {% for action in item.actions %}
+                    <li>{{ action }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-kicker">Market Whitespace</div>
+                <h2 class="section-title">Opportunity themes surfaced by the AI comparison pass</h2>
+            </div>
+            <div class="inline-grid">
+                {% for opportunity in market_opportunities %}
+                <div class="opportunity-card">
+                    <div>
+                        <span class="pill {% if opportunity.priority == 'High' %}pill-high{% elif opportunity.priority == 'Medium' %}pill-medium{% else %}pill-low{% endif %}">
+                            {{ opportunity.priority }}
+                        </span>
+                    </div>
+                    <h3>{{ opportunity.keyword }}</h3>
+                    <p class="card-copy"><strong>Opportunity score:</strong> {{ opportunity.market_opportunity_score }}/10</p>
+                    <p class="card-copy"><strong>Gap signal:</strong> {{ opportunity.supporting_gap_ratio }}</p>
+                    <p class="card-copy"><strong>Why it matters:</strong> {{ opportunity.business_impact }}</p>
+                    <p class="card-copy"><strong>Recommendation:</strong> {{ opportunity.recommendation }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="two-column">
+            <div class="column">
+                <div class="keyword-list">
+                    <div class="card-kicker">Primary keywords</div>
+                    <h3>Core demand themes</h3>
+                    <div>
+                        {% for keyword in keyword_analysis.primary_keywords %}
+                        <span class="keyword-chip">{{ keyword }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="list-stack">
+                        <div class="stack-item">
+                            <strong>Informational intent</strong>
+                            <ul>
+                                {% for keyword in keyword_analysis.keyword_intent.informational %}
+                                <li>{{ keyword }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="stack-item">
+                            <strong>Transactional intent</strong>
+                            <ul>
+                                {% for keyword in keyword_analysis.keyword_intent.transactional %}
+                                <li>{{ keyword }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="stack-item">
+                            <strong>Navigational intent</strong>
+                            <ul>
+                                {% for keyword in keyword_analysis.keyword_intent.navigational %}
+                                <li>{{ keyword }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="keyword-list">
+                    <div class="card-kicker">Content strategy</div>
+                    <h3>AI-generated content plays</h3>
+                    <div class="inline-grid" style="margin-top: 6px;">
+                        {% for post in content_strategy.blog_suggestions %}
+                        <div class="blog-card">
+                            <div class="card-kicker">{{ post.search_intent }}</div>
+                            <h3>{{ post.title }}</h3>
+                            <p class="card-copy"><strong>Target audience:</strong> {{ post.target_audience }}</p>
+                            <ul>
+                                {% for point in post.outline %}
+                                <li>{{ point }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="hero-strip" style="margin-top: 12px;">
+                        <strong>Guest post angles:</strong>
+                        {% for title in content_strategy.guest_post_titles %}
+                        <div style="margin-top: 6px;">• {{ title }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section page-break">
+        <div class="section-header">
+            <div class="section-kicker">AI Commentary</div>
+            <h2 class="section-title">Insight layer generated from the audit</h2>
+        </div>
+        <div class="inline-grid">
+            {% for insight in ai_insights %}
+            <div class="insight-card">
+                <div>
+                    <span class="pill {% if insight.priority == 'High' %}pill-high{% elif insight.priority == 'Medium' %}pill-medium{% else %}pill-low{% endif %}">
+                        {{ insight.priority }} · {{ insight.impact }} impact
+                    </span>
+                </div>
+                <h3>{{ insight.issue }}</h3>
+                <p class="card-copy"><strong>Why it matters:</strong> {{ insight.explanation }}</p>
+                <p class="card-copy"><strong>Recommended move:</strong> {{ insight.recommendation }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="section page-break">
+        <div class="section-header">
+            <div class="section-kicker">Linking & Crawl Appendix</div>
+            <h2 class="section-title">Link architecture, sampled pages, and known limitations</h2>
+        </div>
+
+        <div class="two-column">
+            <div class="column">
+                <div class="link-panel">
+                    <div class="card-kicker">Internal linking</div>
+                    <h3>{{ link_analysis.internal.internal_link_score }}/100 internal linking score</h3>
+                    <div class="list-stack">
+                        <div class="stack-item">
+                            <strong>Issues</strong>
+                            <ul>
+                                {% for issue in link_analysis.internal.issues %}
+                                <li>{{ issue }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="stack-item">
+                            <strong>Recommendations</strong>
+                            <ul>
+                                {% for item in link_analysis.internal.recommendations %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="link-panel">
+                    <div class="card-kicker">External authority</div>
+                    <h3>{{ link_analysis.backlinks.backlink_strength }} backlink profile</h3>
+                    <p class="card-copy">
+                        {{ link_analysis.backlinks.estimated_backlinks }} estimated backlinks ·
+                        {{ link_analysis.backlinks.referring_domains }} referring domains
+                    </p>
+                    <div class="hero-strip">
+                        <strong>External links found:</strong> {{ link_analysis.external.total_external_links }}
+                        <div style="margin-top: 8px;">
+                            {% for domain in link_analysis.external.domains[:12] %}
+                            <div style="margin-top: 4px;">• {{ domain }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-kicker">Sampled Pages</div>
+                <h2 class="section-title">Crawl sample appendix</h2>
+            </div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Page</th>
+                        <th>Type</th>
+                        <th>SEO Health</th>
+                        <th>Key Issue</th>
+                        <th>Word Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for page in sampled_pages %}
+                    <tr>
+                        <td><strong>{{ page.url }}</strong><br><span class="subtle">{{ page.title }}</span></td>
+                        <td>{{ page.page_type }}</td>
+                        <td>{{ page.seo_health }}</td>
+                        <td>{{ page.key_issue }}</td>
+                        <td>{{ page.word_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-kicker">Limitations</div>
+                <h2 class="section-title">What this audit still needs before becoming a final source of truth</h2>
+            </div>
+            <div class="inline-grid">
+                {% for item in data_limitations %}
+                <div class="limitation-card">
+                    <div class="card-kicker">{{ item.data_source }}</div>
+                    <h3>{{ item.current_status }}</h3>
+                    <p class="card-copy"><strong>Why it matters:</strong> {{ item.why_it_matters }}</p>
+                    <p class="card-copy"><strong>Next step:</strong> {{ item.next_step }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <p class="footer-note">
+            Generated by SEO Spy Agent. This document is a sampled, crawl-based SEO intelligence brief and should be paired with analytics, Search Console, and live conversion data for final executive decision-making.
+        </p>
+    </section>
 </body>
 </html>

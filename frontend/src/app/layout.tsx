@@ -7,16 +7,14 @@ import "@fontsource/space-grotesk/700.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "@fontsource/ibm-plex-mono/600.css";
-import "@fontsource/instrument-serif/400.css";
-import "@fontsource/instrument-serif/400-italic.css";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SEO Spy Studio",
+  title: "SEO Spy Agent",
   description:
-    "A polished Next.js frontend for the SEO Spy Agent FastAPI backend.",
-  applicationName: "SEO Spy Studio",
+    "AI agent-driven SEO intelligence with live crawl telemetry, strategy insights, and executive reporting.",
+  applicationName: "SEO Spy Agent",
 };
 
 export default function RootLayout({

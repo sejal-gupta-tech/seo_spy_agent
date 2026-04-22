@@ -395,17 +395,6 @@ async def analyze_url(
         "market_opportunities": comparison_result.get("market_opportunities", []),
     }
 
-    pdf_template_data = build_pdf_template_data(
-        url=url,
-        executive_summary=executive_summary,
-        management_summary=management_summary,
-        audit_result=sitewide_audit,
-        comparison_result=comparison_result,
-        crawl_data=crawl_data,
-        site_profile=site_profile,
-        data_limitations=data_limitations,
-    )
-
     if not keyword_analysis_data.get("primary_keywords"):
         sitewide_audit.setdefault("findings", []).append({
             "category": "Content Strategy",
@@ -436,6 +425,26 @@ async def analyze_url(
         },
         "backlinks": backlink_report
     }
+
+    pdf_template_data = build_pdf_template_data(
+        url=url,
+        executive_summary=executive_summary,
+        management_summary=management_summary,
+        audit_result=sitewide_audit,
+        comparison_result=competitive_intelligence,
+        crawl_data=crawl_data,
+        site_profile=site_profile,
+        data_limitations=data_limitations,
+        recommended_roadmap=recommended_roadmap,
+        content_strategy={
+            "blog_suggestions": blog_suggestions.get("blog_posts", []),
+            "guest_post_titles": guest_posts.get("guest_post_titles", []),
+        },
+        keyword_analysis=keyword_analysis_data,
+        page_speed=page_speed_data,
+        link_analysis=link_analysis_data,
+        ai_insights=ai_insights_data,
+    )
 
     from app.services.report_generator import render_report_html, generate_pdf_report
 
