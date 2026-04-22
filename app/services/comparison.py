@@ -9,6 +9,7 @@ from openai import OpenAI
 
 from app.core.logger import logger
 from app.core.config import (
+    COMPETITOR_FETCH_TIMEOUT_SECONDS,
     DEFAULT_COMPANY_NAME,
     DEFAULT_MARKET_FOCUS_KEYWORDS,
     DEFAULT_SERVICE_PILLARS,
@@ -58,7 +59,7 @@ async def get_page_headings(url: str) -> list[str]:
     headers = {"User-Agent": "Mozilla/5.0"}
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client_http:
+        async with httpx.AsyncClient(timeout=COMPETITOR_FETCH_TIMEOUT_SECONDS) as client_http:
             response = await client_http.get(
                 url,
                 headers=headers,

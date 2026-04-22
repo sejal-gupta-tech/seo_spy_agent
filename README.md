@@ -55,9 +55,46 @@ Start the server on a custom port:
 ./run.sh --host 127.0.0.1 --port 8001
 ```
 
+## Frontend
+
+A Next.js frontend now lives in [frontend/README.md](/Users/upendra/Documents/GitHub/seo_spy_agent/frontend/README.md).
+
+Start both frontend and backend together from the repo root:
+
+```bash
+./run.sh
+```
+
+The launcher:
+- starts the frontend on `127.0.0.1:3000`
+- waits until `/` returns `200`
+- retries once after clearing `frontend/.next` if the Next dev cache is stale
+- skips frontend startup automatically when you use `--check-only`
+
+If you want to run the services separately, start the FastAPI backend first:
+
+```bash
+./run.sh --host 127.0.0.1 --port 8010
+```
+
+Then start the frontend:
+
+```bash
+cd frontend
+cp .env.local.example .env.local
+npm run dev -- --hostname 127.0.0.1 --port 3000
+```
+
+Set this in `frontend/.env.local` only if the backend is not on one of the common local ports:
+
+```bash
+BACKEND_API_URL=http://127.0.0.1:8010
+```
+
 ## API Endpoints
 
 - `POST /analyze-url`
+- `POST /analyze-url/stream`
 - `POST /generate-fix`
 - `GET /download-report/{task_id}`
 
@@ -65,3 +102,4 @@ Start the server on a custom port:
 
 - If `OPENAI_API_KEY` is missing, the app still starts and falls back to non-AI defaults where supported.
 - Reports are written to the `reports/` directory.
+- The Next.js frontend proxies API calls through its own route handlers, so the browser does not call the Python API directly.

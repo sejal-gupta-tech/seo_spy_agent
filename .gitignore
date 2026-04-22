@@ -65,3 +65,6 @@ chroma/
 
 # Agent/Gemini Artifacts
 .gemini/
+
+# Generated reports
+reports/*.pdf

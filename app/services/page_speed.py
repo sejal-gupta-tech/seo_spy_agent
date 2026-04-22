@@ -1,6 +1,8 @@
 import time
 import httpx
 
+from app.core.config import HTTP_TIMEOUT_SECONDS
+
 async def get_page_speed(url: str) -> dict:
     """
     Evaluates basic HTTP performance calculating response elasticity and simulated scoring.
@@ -12,7 +14,7 @@ async def get_page_speed(url: str) -> dict:
     status = "Failed"
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
             response = await client.get(
                 url,
                 headers={

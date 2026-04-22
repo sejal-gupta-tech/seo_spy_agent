@@ -1,6 +1,10 @@
+import os
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.models.schema import FinalResponse, URLRequest, FixRequest, FixResponse
+from app.services.analysis_stream import stream_analysis
 from app.services.scraper import analyze_url
 from app.services.fix_generator import generate_fix
 from app.utils.validators import is_valid_url, normalize_url
@@ -31,8 +35,22 @@ async def analyze(data: URLRequest):
     return result
 
 
-from fastapi.responses import FileResponse
-import os
+@router.post("/analyze-url/stream")
+async def analyze_stream(data: URLRequest):
+    normalized_url = normalize_url(data.url)
+
+    if not is_valid_url(normalized_url):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    return StreamingResponse(
+        stream_analysis(normalized_url),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 @router.get("/download-report/{task_id}")
 def download_report(task_id: str):

@@ -1,6 +1,8 @@
 import asyncio
+import time
 
 from app.core.logger import logger
+from app.services.progress import ProgressCallback, emit_progress
 from app.services.ai_seo import extract_main_keyword, generate_seo_suggestions
 from app.services.audit import audit_seo, audit_sitewide
 from app.services.comparison import compare_with_competitors, get_page_headings
@@ -78,10 +80,53 @@ def _favicon_status_label(crawl_data: dict) -> str:
     return _status_label(favicon_resource, "Missing")
 
 
-async def analyze_url(url: str):
+async def analyze_url(
+    url: str,
+    progress_callback: ProgressCallback | None = None,
+):
     logger.info(f"Starting report generation for URL: {url}")
+    request_started_at = time.perf_counter()
 
-    crawl_data = await crawl_site(url)
+    async def emit(event: dict) -> None:
+        event.setdefault(
+            "elapsed_seconds",
+            round(time.perf_counter() - request_started_at, 2),
+        )
+        await emit_progress(progress_callback, event)
+
+    await emit(
+        {
+            "type": "run_started",
+            "url": url,
+            "message": "Initializing crawl frontier and benchmark pipeline.",
+        }
+    )
+    await emit(
+        {
+            "type": "stage",
+            "stage": "crawl",
+            "status": "active",
+            "label": "Mapping crawl frontier",
+            "detail": "Collecting HTML pages, depth, and internal link signals.",
+        }
+    )
+
+    from app.services.page_speed import get_page_speed
+    page_speed_task = asyncio.create_task(get_page_speed(url))
+    crawl_data = await crawl_site(url, progress_callback=progress_callback)
+    logger.info(f"Crawl stage completed in {time.perf_counter() - request_started_at:.2f}s")
+    await emit(
+        {
+            "type": "stage",
+            "stage": "crawl",
+            "status": "completed",
+            "label": "Mapping crawl frontier",
+            "detail": (
+                f"Captured {crawl_data.get('analyzed_pages', 0)} pages and "
+                f"{crawl_data.get('discovered_internal_pages', 0)} discovered URLs."
+            ),
+        }
+    )
     pages = crawl_data.get("pages", [])
     
     from app.services.url_analysis import analyze_url_structure
@@ -91,6 +136,15 @@ async def analyze_url(url: str):
 
     if not pages:
         logger.error("No crawlable HTML pages were returned from the crawl.")
+        await emit(
+            {
+                "type": "error",
+                "detail": (
+                    "The site could not be crawled successfully. "
+                    "It may be blocking requests, serving non-HTML content, or responding too slowly."
+                ),
+            }
+        )
         return {
             "error": (
                 "The site could not be crawled successfully. "
@@ -104,23 +158,98 @@ async def analyze_url(url: str):
         f"{crawl_data.get('discovered_internal_pages', 0)} discovered internal URLs."
     )
 
+    await emit(
+        {
+            "type": "stage",
+            "stage": "audit",
+            "status": "active",
+            "label": "Scoring technical health",
+            "detail": "Checking titles, canonicals, headings, page speed, and link quality.",
+        }
+    )
+
     primary_page_audit = audit_seo(primary_page, page_url=primary_page.get("url", ""))
     page_audits = [audit_seo(page, page_url=page.get("url", "")) for page in pages]
-
-    from app.services.page_speed import get_page_speed
-    page_speed_data = await get_page_speed(url)
+    page_speed_data = await page_speed_task
+    logger.info(f"Page speed stage completed in {time.perf_counter() - request_started_at:.2f}s")
 
     sitewide_audit = audit_sitewide(crawl_data, page_audits, page_speed_data)
     logger.info(f"Sitewide SEO health score: {sitewide_audit.get('overall_score')}")
+    await emit(
+        {
+            "type": "health_snapshot",
+            "overall_score": sitewide_audit.get("overall_score", 0),
+            "overall_seo_health": sitewide_audit.get("overall_seo_health", "0%"),
+            "analyzed_pages": crawl_data.get("analyzed_pages", 0),
+            "discovered_internal_pages": crawl_data.get("discovered_internal_pages", 0),
+            "sample_coverage_ratio": crawl_data.get("sample_coverage_ratio", 0.0),
+            "metric_summary": sitewide_audit.get("metric_summary", [])[:4],
+        }
+    )
 
-    ai_result = generate_seo_suggestions(primary_page)
+    for finding in sitewide_audit.get("findings", [])[:6]:
+        await emit({"type": "finding", "finding": finding})
+
+    await emit(
+        {
+            "type": "stage",
+            "stage": "audit",
+            "status": "completed",
+            "label": "Scoring technical health",
+            "detail": f"Signal now reads {sitewide_audit.get('overall_seo_health', '0%')}.",
+        }
+    )
+
+    await emit(
+        {
+            "type": "stage",
+            "stage": "ai",
+            "status": "active",
+            "label": "Running AI strategy passes",
+            "detail": "Generating keyword themes, rewrite angles, and board-facing notes.",
+        }
+    )
+
+    await emit(
+        {
+            "type": "ai_update",
+            "label": "Primary page model",
+            "detail": "Extracting page-level SEO keywords and metadata opportunities.",
+        }
+    )
+    ai_result = await asyncio.to_thread(generate_seo_suggestions, primary_page)
     site_profile = build_site_profile(url, primary_page, ai_result)
     logger.info(f"Dynamic site profile prepared for: {site_profile.get('company_name')}")
+    await emit(
+        {
+            "type": "ai_update",
+            "label": "Site profile inferred",
+            "detail": (
+                f"Brand context shaped around {site_profile.get('company_name', 'the website')}."
+            ),
+        }
+    )
 
     from app.services.content_strategy import generate_blog_suggestions, generate_guest_post_titles
-    blog_suggestions = generate_blog_suggestions(primary_page, ai_result)
-    guest_posts = generate_guest_post_titles(primary_page, ai_result)
+    await emit(
+        {
+            "type": "ai_update",
+            "label": "Content strategy model",
+            "detail": "Generating blog angles and guest post opportunities.",
+        }
+    )
+    blog_suggestions = await asyncio.to_thread(generate_blog_suggestions, primary_page, ai_result)
+    guest_posts = await asyncio.to_thread(generate_guest_post_titles, primary_page, ai_result)
     logger.info("Content Strategy Generation completed via OpenAI")
+    await emit(
+        {
+            "type": "stage",
+            "stage": "ai",
+            "status": "completed",
+            "label": "Running AI strategy passes",
+            "detail": "Content strategy and rewrite angles are now in memory.",
+        }
+    )
 
     fallback_text = " ".join(
         item
@@ -138,13 +267,38 @@ async def analyze_url(url: str):
         main_keyword = focus_keywords[0] if focus_keywords else ""
     logger.info(f"Primary market keyword: {main_keyword or 'unavailable'}")
 
+    await emit(
+        {
+            "type": "stage",
+            "stage": "competition",
+            "status": "active",
+            "label": "Comparing market coverage",
+            "detail": "Searching competitors and extracting their heading coverage.",
+        }
+    )
     competitors = await get_top_competitors(main_keyword)
     logger.info(f"Found {len(competitors)} competitors for comparison")
+    await emit(
+        {
+            "type": "competitor_update",
+            "phase": "search",
+            "count": len(competitors),
+            "competitors": competitors,
+        }
+    )
 
     user_headings = _collect_user_headings(pages)
     all_competitor_headings = []
 
     if competitors:
+        await emit(
+            {
+                "type": "competitor_update",
+                "phase": "heading-fetch",
+                "count": len(competitors),
+                "competitors": competitors,
+            }
+        )
         competitor_heading_sets = await asyncio.gather(
             *(get_page_headings(competitor) for competitor in competitors)
         )
@@ -152,13 +306,44 @@ async def analyze_url(url: str):
         for heading_set in competitor_heading_sets:
             all_competitor_headings.extend(heading_set)
 
-    comparison_result = compare_with_competitors(
+    from app.services.keyword_analysis import generate_relevant_keywords
+    from app.services.ai_insights import get_ai_insights
+
+    comparison_task = asyncio.to_thread(
+        compare_with_competitors,
         user_headings=user_headings,
         competitor_headings=all_competitor_headings,
         seed_keyword=main_keyword,
         site_profile=site_profile,
     )
+    keyword_analysis_task = asyncio.to_thread(
+        generate_relevant_keywords,
+        primary_page,
+        ai_result.get("keywords", []),
+    )
+    ai_insights_task = asyncio.to_thread(get_ai_insights, sitewide_audit)
+
+    comparison_result, keyword_analysis_data, ai_insights_data = await asyncio.gather(
+        comparison_task,
+        keyword_analysis_task,
+        ai_insights_task,
+    )
     logger.info("Competitor comparison completed")
+
+    for opportunity in comparison_result.get("market_opportunities", [])[:5]:
+        await emit({"type": "opportunity", "opportunity": opportunity})
+
+    await emit(
+        {
+            "type": "stage",
+            "stage": "competition",
+            "status": "completed",
+            "label": "Comparing market coverage",
+            "detail": (
+                f"Comparison finished across {len(competitors)} competitor domains."
+            ),
+        }
+    )
 
     data_limitations = build_data_limitations(crawl_data)
     management_summary = build_management_summary(
@@ -221,9 +406,6 @@ async def analyze_url(url: str):
         data_limitations=data_limitations,
     )
 
-    from app.services.keyword_analysis import generate_relevant_keywords
-    keyword_analysis_data = generate_relevant_keywords(primary_page, ai_result.get("keywords", []))
-
     if not keyword_analysis_data.get("primary_keywords"):
         sitewide_audit.setdefault("findings", []).append({
             "category": "Content Strategy",
@@ -255,22 +437,53 @@ async def analyze_url(url: str):
         "backlinks": backlink_report
     }
 
-    from app.services.ai_insights import get_ai_insights
-    ai_insights_data = get_ai_insights(sitewide_audit)
-
     from app.services.report_generator import render_report_html, generate_pdf_report
 
+    await emit(
+        {
+            "type": "stage",
+            "stage": "report",
+            "status": "active",
+            "label": "Rendering final report",
+            "detail": "Composing the executive narrative and PDF export.",
+        }
+    )
     print("Generating HTML report...")
 
     html_content = render_report_html(pdf_template_data)
+    await emit(
+        {
+            "type": "report_status",
+            "label": "HTML report rendered",
+            "detail": "Packaging the visual report layer for export.",
+        }
+    )
 
     print("Generating PDF report...")
 
-    task_id = generate_pdf_report(html_content)
+    task_id = await asyncio.to_thread(generate_pdf_report, html_content)
 
     print("Task ID:", task_id)
+    logger.info(f"Report generation completed in {time.perf_counter() - request_started_at:.2f}s")
 
     report_url = f"/download-report/{task_id}" if task_id else None
+    await emit(
+        {
+            "type": "report_status",
+            "label": "Export bundle ready",
+            "detail": "PDF relay path generated for the frontend download action.",
+            "report_url": report_url,
+        }
+    )
+    await emit(
+        {
+            "type": "stage",
+            "stage": "report",
+            "status": "completed",
+            "label": "Rendering final report",
+            "detail": "The crawl, audit, and board report are complete.",
+        }
+    )
 
     return {
         "executive_summary": executive_summary,

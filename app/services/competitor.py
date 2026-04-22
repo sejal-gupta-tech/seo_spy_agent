@@ -2,6 +2,8 @@ import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import quote_plus
 
+from app.core.config import COMPETITOR_FETCH_TIMEOUT_SECONDS
+
 
 async def get_top_competitors(keyword: str):
     # Use DuckDuckGo HTML search for more reliable unblocked automated scraping
@@ -16,7 +18,7 @@ async def get_top_competitors(keyword: str):
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=COMPETITOR_FETCH_TIMEOUT_SECONDS) as client:
             response = await client.get(search_url, headers=headers)
             response.raise_for_status()
     except Exception:

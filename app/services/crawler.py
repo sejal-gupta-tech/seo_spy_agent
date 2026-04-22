@@ -9,16 +9,51 @@ from bs4 import BeautifulSoup
 
 from app.core.config import (
     BROKEN_LINK_CHECK_LIMIT,
+    CRAWL_RETRY_DELAY_SECONDS,
     CRAWL_MAX_DEPTH,
     CRAWL_MAX_PAGES,
+    HTTP_TIMEOUT_SECONDS,
 )
+from app.services.progress import ProgressCallback, emit_progress
 
 CRAWL_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
 }
+
+
+def _describe_crawl_failure(
+    status_code: int | None = None,
+    error: Exception | None = None,
+) -> tuple[str, str]:
+    if status_code == 401:
+        return "blocked", "Authentication is required before this page can be crawled (401)."
+    if status_code == 403:
+        return "blocked", "This page is blocked by access controls or bot protection (403)."
+    if status_code == 404:
+        return "missing", "This page returns 404 and is no longer available."
+    if status_code == 405:
+        return "blocked", "The origin refused this crawl method (405)."
+    if status_code == 429:
+        return "rate_limited", "The site is rate-limiting crawl requests (429)."
+    if status_code and 500 <= status_code < 600:
+        return "server", f"The site returned a server error ({status_code})."
+    if status_code and 400 <= status_code < 500:
+        return "client", f"The page returned an unexpected client error ({status_code})."
+
+    if isinstance(error, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.WriteTimeout)):
+        return "timeout", "The page timed out before it could be read."
+    if isinstance(error, httpx.TooManyRedirects):
+        return "redirect_loop", "The page entered a redirect loop and could not be resolved."
+    if isinstance(error, httpx.ConnectError):
+        return "network", "The crawler could not establish a network connection."
+
+    return "network", "The request failed before the page could be analyzed."
 
 
 def normalize_crawl_url(url: str) -> str:
@@ -423,11 +458,31 @@ async def _check_sampled_internal_links(
     }
 
 
-async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
+async def crawl_site(
+    start_url: str,
+    max_pages: int | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> dict:
     normalized_start_url = normalize_crawl_url(start_url)
     base_domain = urlparse(normalized_start_url).netloc
+    effective_max_pages = max_pages or CRAWL_MAX_PAGES
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    await emit_progress(
+        progress_callback,
+        {
+            "type": "crawl_seed",
+            "url": normalized_start_url,
+            "depth": 0,
+            "max_pages": effective_max_pages,
+            "max_depth": CRAWL_MAX_DEPTH,
+        },
+    )
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=min(4.0, HTTP_TIMEOUT_SECONDS)),
+        headers=CRAWL_HEADERS,
+        follow_redirects=True,
+    ) as client:
         robots_task = asyncio.create_task(
             _fetch_robots_txt(client, urljoin(normalized_start_url, "/robots.txt"))
         )
@@ -446,7 +501,7 @@ async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
         page_map = {}
         max_depth_reached = 0
 
-        while queue and len(pages) < CRAWL_MAX_PAGES:
+        while queue and len(pages) < effective_max_pages:
             current_url, depth = queue.popleft()
             queued_urls.discard(current_url)
 
@@ -455,31 +510,76 @@ async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
 
             visited_urls.add(current_url)
 
+            await emit_progress(
+                progress_callback,
+                {
+                    "type": "crawl_request",
+                    "url": current_url,
+                    "depth": depth,
+                    "queue_remaining": len(queue),
+                    "visited_pages": len(visited_urls),
+                },
+            )
+
             success = False
             response = None
+            last_status_code = 0
+            last_error = None
+            last_error_category = "network"
+            last_response_url = current_url
             
             for attempt in range(2):
                 try:
-                    response = await client.get(
-                        current_url,
-                        headers=CRAWL_HEADERS,
-                        follow_redirects=True,
-                    )
+                    response = await client.get(current_url)
+                    last_response_url = str(response.url)
                     response.raise_for_status()
                     success = True
                     break
-                except httpx.HTTPError as e:
-                    if response and response.status_code in {401, 403, 404, 405}:
-                        break  
-                    await asyncio.sleep(1.0)
-                except Exception:
-                    await asyncio.sleep(1.0)
+                except httpx.HTTPStatusError as exc:
+                    response = exc.response
+                    last_status_code = exc.response.status_code
+                    last_response_url = str(exc.response.url)
+                    last_error_category, _ = _describe_crawl_failure(
+                        status_code=last_status_code,
+                        error=exc,
+                    )
+                    if last_status_code in {401, 403, 404, 405, 429}:
+                        break
+                    await asyncio.sleep(CRAWL_RETRY_DELAY_SECONDS)
+                except httpx.HTTPError as exc:
+                    last_error = exc
+                    last_error_category, _ = _describe_crawl_failure(error=exc)
+                    await asyncio.sleep(CRAWL_RETRY_DELAY_SECONDS)
             
-            if not success or not response:
+            if not success or response is None:
+                error_category, error_detail = _describe_crawl_failure(
+                    status_code=last_status_code or None,
+                    error=last_error,
+                )
+                await emit_progress(
+                    progress_callback,
+                    {
+                        "type": "crawl_error",
+                        "url": last_response_url,
+                        "depth": depth,
+                        "detail": error_detail,
+                        "status_code": last_status_code,
+                        "category": error_category or last_error_category,
+                    },
+                )
                 continue
 
             content_type = response.headers.get("content-type", "").lower()
             if "text/html" not in content_type:
+                await emit_progress(
+                    progress_callback,
+                    {
+                        "type": "crawl_skip",
+                        "url": str(response.url),
+                        "depth": depth,
+                        "detail": f"Skipped non-HTML response: {content_type or 'unknown content type'}.",
+                    },
+                )
                 continue
 
             page_data = _parse_page(response, depth=depth, base_domain=base_domain)
@@ -491,21 +591,77 @@ async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
             page_map[final_url] = page_data
             pages.append(page_data)
             max_depth_reached = max(max_depth_reached, depth)
+            new_links = []
 
             for link in page_data["internal_links"]:
+                if link not in discovered_urls:
+                    new_links.append(link)
                 discovered_urls.add(link)
 
                 if (
                     depth < CRAWL_MAX_DEPTH
                     and link not in visited_urls
                     and link not in queued_urls
-                    and len(visited_urls) < CRAWL_MAX_PAGES
+                    and len(visited_urls) < effective_max_pages
                 ):
                     queue.append((link, depth + 1))
                     queued_urls.add(link)
 
+            await emit_progress(
+                progress_callback,
+                {
+                    "type": "crawl_page",
+                    "url": final_url,
+                    "title": page_data.get("title", ""),
+                    "depth": depth,
+                    "page_type": page_data.get("page_type", "Other"),
+                    "status_code": page_data.get("status_code", 0),
+                    "analyzed_pages": len(pages),
+                    "discovered_internal_pages": len(discovered_urls),
+                    "queue_remaining": len(queue),
+                    "internal_links_count": page_data.get("internal_links_count", 0),
+                    "external_links_count": page_data.get("external_links_count", 0),
+                    "new_links_count": len(new_links),
+                    "new_links_sample": new_links[:3],
+                },
+            )
+
         robots_data, sitemap_data, favicon_data = await asyncio.gather(robots_task, sitemap_task, favicon_task)
         broken_link_summary = await _check_sampled_internal_links(client, pages)
+
+        for resource_name, resource_data in (
+            ("robots", robots_data),
+            ("sitemap", sitemap_data),
+            ("favicon", favicon_data),
+        ):
+            await emit_progress(
+                progress_callback,
+                {
+                    "type": "crawl_resource",
+                    "resource": resource_name,
+                    "url": resource_data.get("url", ""),
+                    "status": resource_data.get("status_string")
+                    or (
+                        f"Found ({resource_data.get('status_code', 0)})"
+                        if resource_data.get("exists")
+                        else "Missing"
+                    ),
+                },
+            )
+
+        await emit_progress(
+            progress_callback,
+            {
+                "type": "crawl_resource",
+                "resource": "broken_links",
+                "status": (
+                    f"{broken_link_summary.get('broken_count', 0)} broken of "
+                    f"{broken_link_summary.get('checked_count', 0)} checked"
+                ),
+                "broken_count": broken_link_summary.get("broken_count", 0),
+                "checked_count": broken_link_summary.get("checked_count", 0),
+            },
+        )
 
     declared_sitemaps = []
     for line in robots_data.get("body", "").splitlines():
@@ -521,7 +677,7 @@ async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
         else 0.0
     )
 
-    return {
+    summary = {
         "base_url": normalized_start_url,
         "domain": base_domain,
         "pages": pages,
@@ -536,3 +692,16 @@ async def crawl_site(start_url: str, max_pages: int = 2) -> dict:
         "declared_sitemaps": declared_sitemaps,
         "broken_link_summary": broken_link_summary,
     }
+
+    await emit_progress(
+        progress_callback,
+        {
+            "type": "crawl_summary",
+            "analyzed_pages": summary["analyzed_pages"],
+            "discovered_internal_pages": summary["discovered_internal_pages"],
+            "sample_coverage_ratio": summary["sample_coverage_ratio"],
+            "crawl_depth": summary["crawl_depth"],
+        },
+    )
+
+    return summary

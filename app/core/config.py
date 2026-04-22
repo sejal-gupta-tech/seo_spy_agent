@@ -1,3 +1,28 @@
+import os
+
+
+def _read_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
+def _read_float(name: str, default: float) -> float:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        return float(raw_value)
+    except ValueError:
+        return default
+
+
 SEO_BENCHMARK_YEAR = 2026
 
 DEFAULT_COMPANY_NAME = "This Website"
@@ -15,9 +40,15 @@ DEFAULT_MARKET_FOCUS_KEYWORDS = [
     "customer demand",
 ]
 
-CRAWL_MAX_PAGES = 100
+CRAWL_MAX_PAGES = _read_int("SEO_SPY_CRAWL_MAX_PAGES", 25)
 CRAWL_MAX_DEPTH = 3
-BROKEN_LINK_CHECK_LIMIT = 50
+BROKEN_LINK_CHECK_LIMIT = _read_int("SEO_SPY_BROKEN_LINK_CHECK_LIMIT", 20)
+HTTP_TIMEOUT_SECONDS = _read_float("SEO_SPY_HTTP_TIMEOUT_SECONDS", 8.0)
+COMPETITOR_FETCH_TIMEOUT_SECONDS = _read_float(
+    "SEO_SPY_COMPETITOR_FETCH_TIMEOUT_SECONDS",
+    5.0,
+)
+CRAWL_RETRY_DELAY_SECONDS = _read_float("SEO_SPY_CRAWL_RETRY_DELAY_SECONDS", 0.35)
 
 SEO_BENCHMARKS = {
     "title_length": {
