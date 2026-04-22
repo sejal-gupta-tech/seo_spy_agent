@@ -61,6 +61,7 @@ htmlcov/
 *.sqlite3
 db/
 chroma/
+.cache/
 
 # Agent/Gemini Artifacts
 .gemini/

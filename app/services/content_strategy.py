@@ -2,10 +2,15 @@ import json
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+from app.core.logger import logger
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+try:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+except Exception:
+    client = None
+    logger.warning("OpenAI client not initialized for content_strategy. Falling back to static suggestions.")
 
 def generate_blog_suggestions(scraped_data: dict, ai_keywords: dict) -> dict:
     title = scraped_data.get("title", "")
@@ -40,6 +45,18 @@ def generate_blog_suggestions(scraped_data: dict, ai_keywords: dict) -> dict:
       ]
     }}
     """
+
+    if not client:
+        return {
+            "blog_posts": [
+                {
+                    "title": "Comprehensive Guide to " + (title or "Our Services"),
+                    "target_audience": "General Users",
+                    "search_intent": "informational",
+                    "outline": ["Introduction", "Core Concepts", "Conclusion"]
+                }
+            ]
+        }
 
     try:
         response = client.chat.completions.create(
@@ -85,6 +102,15 @@ def generate_guest_post_titles(scraped_data: dict, ai_keywords: dict) -> dict:
       "guest_post_titles": ["Title 1", "Title 2", "Title 3", "Title 4", "Title 5"]
     }}
     """
+
+    if not client:
+        return {
+            "guest_post_titles": [
+                """The Ultimate Guide to Industry Trends""",
+                """5 Strategies for Success in Your Niche""",
+                """How to Master Modern Workflows in 2026""",
+            ]
+        }
 
     try:
         response = client.chat.completions.create(

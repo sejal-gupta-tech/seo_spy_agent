@@ -4,10 +4,15 @@ import re
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from app.core.logger import logger
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+try:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+except Exception:
+    client = None
+    logger.warning("OpenAI client not initialized for ai_seo. Falling back to safe defaults.")
 
 
 def generate_seo_suggestions(data: dict) -> dict:
@@ -38,6 +43,14 @@ def generate_seo_suggestions(data: dict) -> dict:
         "new_title": ""
     }}
     """
+
+    if not client:
+        return {
+            "keywords": [],
+            "new_meta_description": "",
+            "new_title": "",
+            "error": "OpenAI client is not configured.",
+        }
 
     try:
         response = client.chat.completions.create(

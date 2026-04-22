@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from app.core.logger import logger
 from app.core.config import (
     DEFAULT_COMPANY_NAME,
     DEFAULT_MARKET_FOCUS_KEYWORDS,
@@ -16,7 +17,11 @@ from app.utils.helpers import format_percentage
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+try:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+except Exception:
+    client = None
+    logger.warning("OpenAI client not initialized for comparison. Falling back to heuristic output.")
 
 STOPWORDS = {
     "the",
@@ -287,6 +292,9 @@ def _generate_market_opportunities(
       ]
     }}
     """
+
+    if not client:
+        return _fallback_market_opportunities(content_gap_ratio, seed_keyword, site_profile)
 
     try:
         response = client.chat.completions.create(
