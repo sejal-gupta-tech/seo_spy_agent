@@ -1,4 +1,13 @@
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TEMPLATES_DIR = PROJECT_ROOT / "app" / "templates"
+REPORTS_DIR = PROJECT_ROOT / "reports"
 
 
 def _read_int(name: str, default: int) -> int:

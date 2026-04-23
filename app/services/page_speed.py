@@ -2,6 +2,7 @@ import time
 import httpx
 
 from app.core.config import HTTP_TIMEOUT_SECONDS
+from app.core.logger import logger
 
 async def get_page_speed(url: str) -> dict:
     """
@@ -50,6 +51,7 @@ async def get_page_speed(url: str) -> dict:
                 status = "Slow"
 
     except Exception:
+        logger.exception("Page speed probe failed for %s", url)
         score = 0
         status = "Failed"
 

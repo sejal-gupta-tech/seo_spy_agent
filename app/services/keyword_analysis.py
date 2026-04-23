@@ -1,11 +1,6 @@
 import json
-from openai import OpenAI
 from app.core.logger import logger
-
-try:
-    client = OpenAI()
-except Exception:
-    client = None
+from app.core.openai_client import get_openai_client
 
 def generate_relevant_keywords(scraped_data: dict, ai_keywords: list) -> dict:
     """
@@ -21,6 +16,7 @@ def generate_relevant_keywords(scraped_data: dict, ai_keywords: list) -> dict:
             "navigational": []
         }
     }
+    client = get_openai_client()
 
     if not client:
         logger.warning("OpenAI client not initialized. Returning empty keyword block.")
@@ -89,6 +85,6 @@ def generate_relevant_keywords(scraped_data: dict, ai_keywords: list) -> dict:
             
         return parsed_json
 
-    except Exception as e:
-        logger.error(f"Failed to generate structured keywords gracefully: {{e}}")
+    except Exception:
+        logger.exception("Failed to generate structured keywords.")
         return fallback_response

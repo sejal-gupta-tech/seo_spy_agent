@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import time
 
 from app.core.logger import logger
@@ -112,8 +113,16 @@ async def analyze_url(
     )
 
     from app.services.page_speed import get_page_speed
+
     page_speed_task = asyncio.create_task(get_page_speed(url))
-    crawl_data = await crawl_site(url, progress_callback=progress_callback)
+    try:
+        crawl_data = await crawl_site(url, progress_callback=progress_callback)
+    except Exception:
+        if not page_speed_task.done():
+            page_speed_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await page_speed_task
+        raise
     logger.info(f"Crawl stage completed in {time.perf_counter() - request_started_at:.2f}s")
     await emit(
         {
@@ -135,6 +144,10 @@ async def analyze_url(
             page["url_structure"] = analyze_url_structure(page["url"])
 
     if not pages:
+        if not page_speed_task.done():
+            page_speed_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await page_speed_task
         logger.error("No crawlable HTML pages were returned from the crawl.")
         await emit(
             {
@@ -457,7 +470,7 @@ async def analyze_url(
             "detail": "Composing the executive narrative and PDF export.",
         }
     )
-    print("Generating HTML report...")
+    logger.info("Rendering HTML report.")
 
     html_content = render_report_html(pdf_template_data)
     await emit(
@@ -468,11 +481,11 @@ async def analyze_url(
         }
     )
 
-    print("Generating PDF report...")
+    logger.info("Rendering PDF report.")
 
     task_id = await asyncio.to_thread(generate_pdf_report, html_content)
 
-    print("Task ID:", task_id)
+    logger.info("Report task id: %s", task_id)
     logger.info(f"Report generation completed in {time.perf_counter() - request_started_at:.2f}s")
 
     report_url = f"/download-report/{task_id}" if task_id else None

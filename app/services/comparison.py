@@ -1,11 +1,8 @@
 import json
-import os
 import re
 
 import httpx
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from openai import OpenAI
 
 from app.core.logger import logger
 from app.core.config import (
@@ -15,14 +12,7 @@ from app.core.config import (
     DEFAULT_SERVICE_PILLARS,
 )
 from app.utils.helpers import format_percentage
-
-load_dotenv()
-
-try:
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-except Exception:
-    client = None
-    logger.warning("OpenAI client not initialized for comparison. Falling back to heuristic output.")
+from app.core.openai_client import get_openai_client
 
 STOPWORDS = {
     "the",
@@ -244,6 +234,7 @@ def _generate_market_opportunities(
     seed_keyword: str,
     site_profile: dict,
 ) -> list[dict]:
+    client = get_openai_client()
     company_name = site_profile.get("company_name") or DEFAULT_COMPANY_NAME
     business_summary = site_profile.get("business_summary") or company_name
     core_service_pillars = site_profile.get("core_service_pillars") or DEFAULT_SERVICE_PILLARS
@@ -321,6 +312,7 @@ def _generate_market_opportunities(
         return _sanitize_market_opportunities(opportunities, content_gap_ratio, site_profile)
 
     except Exception:
+        logger.exception("Failed to generate market opportunities with AI.")
         return _fallback_market_opportunities(content_gap_ratio, seed_keyword, site_profile)
 
 

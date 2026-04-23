@@ -1,18 +1,10 @@
 import json
-import os
-from openai import OpenAI
-from dotenv import load_dotenv
+
 from app.core.logger import logger
-
-load_dotenv()
-
-try:
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-except Exception:
-    client = None
-    logger.warning("OpenAI client not initialized for content_strategy. Falling back to static suggestions.")
+from app.core.openai_client import get_openai_client
 
 def generate_blog_suggestions(scraped_data: dict, ai_keywords: dict) -> dict:
+    client = get_openai_client()
     title = scraped_data.get("title", "")
     description = scraped_data.get("description", "")
     headings_dict = scraped_data.get("headings", {})
@@ -75,6 +67,7 @@ def generate_blog_suggestions(scraped_data: dict, ai_keywords: dict) -> dict:
         return parsed
 
     except Exception:
+        logger.exception("Failed to generate blog suggestions.")
         return {
             "blog_posts": [
                 {
@@ -87,6 +80,7 @@ def generate_blog_suggestions(scraped_data: dict, ai_keywords: dict) -> dict:
         }
 
 def generate_guest_post_titles(scraped_data: dict, ai_keywords: dict) -> dict:
+    client = get_openai_client()
     title = scraped_data.get("title", "")
     keywords = ", ".join(ai_keywords.get("keywords", []))
 
@@ -129,6 +123,7 @@ def generate_guest_post_titles(scraped_data: dict, ai_keywords: dict) -> dict:
         return parsed
 
     except Exception:
+        logger.exception("Failed to generate guest post titles.")
         return {
             "guest_post_titles": [
                 """The Ultimate Guide to Industry Trends""",

@@ -1,9 +1,17 @@
-import os
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
-from app.models.schema import FinalResponse, URLRequest, FixRequest, FixResponse
+from app.core.config import REPORTS_DIR
+from app.core.errors import ServiceError
+from app.models.schema import (
+    AnalysisJobAccepted,
+    AnalysisJobStatus,
+    FinalResponse,
+    URLRequest,
+    FixRequest,
+    FixResponse,
+)
+from app.services.analysis_jobs import create_analysis_job, get_analysis_job
 from app.services.analysis_stream import stream_analysis
 from app.services.scraper import analyze_url
 from app.services.fix_generator import generate_fix
@@ -14,10 +22,10 @@ router = APIRouter()
 
 @router.post("/generate-fix", response_model=FixResponse)
 async def fix_issue(data: FixRequest):
-    result = await generate_fix(data.issue)
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
-    return result
+    try:
+        return await generate_fix(data.issue)
+    except ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @router.post("/analyze-url", response_model=FinalResponse)
@@ -33,6 +41,24 @@ async def analyze(data: URLRequest):
         raise HTTPException(status_code=500, detail=result["error"])
 
     return result
+
+
+@router.post("/analysis-jobs", response_model=AnalysisJobAccepted, status_code=202)
+async def submit_analysis_job(data: URLRequest):
+    normalized_url = normalize_url(data.url)
+
+    if not is_valid_url(normalized_url):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    return await create_analysis_job(normalized_url)
+
+
+@router.get("/analysis-jobs/{job_id}", response_model=AnalysisJobStatus)
+async def read_analysis_job(job_id: str):
+    job = await get_analysis_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    return job
 
 
 @router.post("/analyze-url/stream")
@@ -54,13 +80,13 @@ async def analyze_stream(data: URLRequest):
 
 @router.get("/download-report/{task_id}")
 def download_report(task_id: str):
-    pdf_path = f"reports/{task_id}.pdf"
-    html_path = f"reports/{task_id}.html"
+    pdf_path = REPORTS_DIR / f"{task_id}.pdf"
+    html_path = REPORTS_DIR / f"{task_id}.html"
 
-    if os.path.exists(pdf_path):
-        return FileResponse(pdf_path, media_type="application/pdf", filename="seo_report.pdf")
+    if pdf_path.exists():
+        return FileResponse(str(pdf_path), media_type="application/pdf", filename="seo_report.pdf")
 
-    elif os.path.exists(html_path):
-        return FileResponse(html_path, media_type="text/html", filename="seo_report.html")
+    if html_path.exists():
+        return FileResponse(str(html_path), media_type="text/html", filename="seo_report.html")
 
-    return {"error": "Report not found"}
+    raise HTTPException(status_code=404, detail="Report not found")

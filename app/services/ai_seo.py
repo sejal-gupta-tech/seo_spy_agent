@@ -1,21 +1,12 @@
 import json
-import os
 import re
 
-from dotenv import load_dotenv
-from openai import OpenAI
 from app.core.logger import logger
-
-load_dotenv()
-
-try:
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-except Exception:
-    client = None
-    logger.warning("OpenAI client not initialized for ai_seo. Falling back to safe defaults.")
+from app.core.openai_client import get_openai_client
 
 
 def generate_seo_suggestions(data: dict) -> dict:
+    client = get_openai_client()
     title = data.get("title", "")
     description = data.get("description", "")
     headings = data.get("headings", {})
@@ -74,6 +65,7 @@ def generate_seo_suggestions(data: dict) -> dict:
         return parsed
 
     except Exception as exc:
+        logger.exception("Failed to generate SEO suggestions.")
         return {
             "keywords": [],
             "new_meta_description": "",

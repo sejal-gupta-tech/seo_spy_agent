@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -256,3 +256,24 @@ class FinalResponse(BaseModel):
     link_analysis: LinkAnalysis
     ai_insights: AIInsights
     report_url: Optional[str] = None
+
+
+class AnalysisJobAccepted(BaseModel):
+    job_id: str
+    url: str
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: str
+    status_url: str
+
+
+class AnalysisJobStatus(BaseModel):
+    job_id: str
+    url: str
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    error: Optional[str] = None
+    latest_event: Optional[dict[str, Any]] = None
+    recent_events: List[dict[str, Any]] = Field(default_factory=list)
+    result: Optional[FinalResponse] = None

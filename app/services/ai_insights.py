@@ -1,17 +1,13 @@
 import json
-from openai import OpenAI
 from app.core.logger import logger
-
-try:
-    client = OpenAI()
-except Exception:
-    client = None
+from app.core.openai_client import get_openai_client
 
 def get_ai_insights(audit_data: dict) -> dict:
     """
     Translates raw technical metrics returned from Sitewide local arrays directly into structured executive business language.
     """
     fallback = {"insights": []}
+    client = get_openai_client()
     
     if not client:
         logger.warning("OpenAI client not initialized. Returning empty insights block.")
@@ -77,6 +73,6 @@ def get_ai_insights(audit_data: dict) -> dict:
 
         return parsed
 
-    except Exception as e:
-        logger.error(f"Failed to generate AI insights gracefully: {{e}}")
+    except Exception:
+        logger.exception("Failed to generate AI insights.")
         return fallback
