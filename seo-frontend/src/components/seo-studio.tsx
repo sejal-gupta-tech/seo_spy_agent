@@ -13,9 +13,7 @@ import {
 } from 'recharts';
 import { SEO_DATA as DATA } from '../data';
 import { 
-  BarChart3, 
   ShieldCheck, 
-  Search, 
   TrendingUp, 
   FileText, 
   Globe, 
@@ -24,20 +22,14 @@ import {
   Clock, 
   Download,
   ChevronRight,
-  Mail,
   BookOpen,
-  PieChart,
-  Layers,
   ArrowRight,
   Table as TableIcon,
-  MousePointer2,
   Lock,
   Info,
   Lightbulb,
-  Target,
   Zap,
   Activity,
-  Link,
   Cpu,
   Share2,
   Twitter,
@@ -50,8 +42,10 @@ import {
   X,
   ExternalLink,
   Menu,
-  PanelLeftClose,
-  PanelLeftOpen
+  RefreshCw,
+  Search,
+  MousePointer2,
+  Link
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -1156,20 +1150,18 @@ export default function SEOStudio() {
   const [copied, setCopied] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [targetUrl, setTargetUrl] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [auditResult, setAuditResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (auditResult) {
       console.log('Audit Intelligence - Data Payload Received:', auditResult);
     }
   }, [auditResult]);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
-  // Dynamic Audit State
-  const [targetUrl, setTargetUrl] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [auditResult, setAuditResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-
   const reportRef = useRef<HTMLDivElement>(null);
 
   // If no audit has been performed yet, we'll show a landing page
@@ -2337,7 +2329,7 @@ export default function SEOStudio() {
                               <div className="text-xs font-bold text-slate-800 line-clamp-1">{p.title}</div>
                             </td>
                             <td className="p-6 text-center">
-                              <span className="px-2 py-1 bg-slate-150 text-[9px] font-black text-slate-500 rounded uppercase">{p.page_type}</span>
+                              <span className="px-2 py-1 bg-slate-100 text-[9px] font-black text-slate-500 rounded uppercase">{p.page_type}</span>
                             </td>
                             <td className="p-6 text-center">
                               <span className="text-xs font-black text-indigo-600">{p.seo_health}</span>
