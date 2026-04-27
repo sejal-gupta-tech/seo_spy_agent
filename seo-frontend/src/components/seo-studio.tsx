@@ -48,7 +48,11 @@ import {
   Link,
   PanelLeftOpen,
   PanelLeftClose,
-  Target
+  Target,
+  Layers,
+  BarChart3,
+  Mail,
+  PieChart
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
