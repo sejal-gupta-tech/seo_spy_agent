@@ -45,7 +45,9 @@ import {
   RefreshCw,
   Search,
   MousePointer2,
-  Link
+  Link,
+  PanelLeftOpen,
+  PanelLeftClose
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
