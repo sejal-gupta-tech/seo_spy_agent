@@ -71,13 +71,17 @@ def _sitemap_status_label(crawl_data: dict) -> str:
 
 def _favicon_status_label(crawl_data: dict) -> str:
     primary_page = crawl_data.get("primary_page", {})
-    if primary_page.get("has_favicon"):
-        return "Found (HTML meta tag)"
-    
+
+    # has_favicon is only True when a standard rel="icon" or rel="shortcut icon"
+    # link tag was found with a non-empty, non-data-URI href.
+    # apple-touch-icon and mask-icon are explicitly excluded by the crawler.
+    if primary_page.get("has_favicon") and primary_page.get("favicon_url"):
+        return "Found (HTML link tag)"
+
     favicon_resource = crawl_data.get("favicon", {})
-    if favicon_resource.get("exists"):
-        return f"Found (/{favicon_resource.get('status_code', 200)})"
-        
+    if favicon_resource.get("exists") and favicon_resource.get("status_code") == 200:
+        return f"Found (/favicon.ico · {favicon_resource.get('status_code')})"
+
     return _status_label(favicon_resource, "Missing")
 
 
@@ -181,10 +185,15 @@ async def analyze_url(
         }
     )
 
-    primary_page_audit = audit_seo(primary_page, page_url=primary_page.get("url", ""))
-    page_audits = [audit_seo(page, page_url=page.get("url", "")) for page in pages]
     page_speed_data = await page_speed_task
     logger.info(f"Page speed stage completed in {time.perf_counter() - request_started_at:.2f}s")
+
+    # Add performance score to pages if available for individual audit
+    for page in pages:
+        page["performance_score"] = page_speed_data.get("score", 100.0)
+
+    primary_page_audit = audit_seo(primary_page, page_url=primary_page.get("url", ""))
+    page_audits = [audit_seo(page, page_url=page.get("url", "")) for page in pages]
 
     sitewide_audit = audit_sitewide(crawl_data, page_audits, page_speed_data)
     logger.info(f"Sitewide SEO health score: {sitewide_audit.get('overall_score')}")
@@ -516,6 +525,7 @@ async def analyze_url(
             "overall_seo_health": sitewide_audit.get("overall_seo_health"),
             "metric_summary": sitewide_audit.get("metric_summary", []),
             "findings": sitewide_audit.get("findings", []),
+            "score_breakdown": sitewide_audit.get("score_breakdown", []),
         },
         "competitive_intelligence": competitive_intelligence,
         "data_limitations": data_limitations,

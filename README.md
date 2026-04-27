@@ -103,3 +103,37 @@ BACKEND_API_URL=http://127.0.0.1:8010
 - If `OPENAI_API_KEY` is missing, the app still starts and falls back to non-AI defaults where supported.
 - Reports are written to the `reports/` directory.
 - The Next.js frontend proxies API calls through its own route handlers, so the browser does not call the Python API directly.
+
+## MongoDB Data Storage Design
+
+The SEO Spy Agent uses MongoDB to store audit results in a structured, modular, and scalable way. Instead of storing one large JSON document, the system splits data across specialized collections for efficient querying and market analysis.
+
+### Collections
+
+1.  **`projects`**: Main metadata and high-level scoring.
+    *   `url`: The audited website URL.
+    *   `business_type`: Categorization (e.g., `real_estate`, `ecommerce`).
+    *   `seo_score`: Numeric technical health score (0-100).
+    *   `report_url`: Link to the generated PDF.
+
+2.  **`audit_results`**: Technical SEO metrics and detailed findings.
+    *   `metric_summary`: Pass/Fail status for core SEO signals.
+    *   `findings`: Comprehensive list of issues, recommendations, and evidence.
+
+3.  **`ai_insights`**: AI-generated strategic content.
+    *   `executive_summary`: High-level narrative for stakeholders.
+    *   `management_summary`: Board-ready verdict and risk/opportunity analysis.
+    *   `recommended_roadmap`: Actionable steps for improvement.
+
+4.  **`seo_data`**: Competitive intelligence and keyword analysis.
+    *   `competitive_intelligence`: Market overlap, content gaps, and opportunities.
+
+5.  **`crawl_data`**: Page-level technical details.
+    *   `pages`: Array of specific page metrics (SEO health, link counts, critical issues).
+
+### Relationship Design
+
+All collections are linked via a `project_id` (the `ObjectId` of the main document in the `projects` collection). This modular design allows for:
+*   **Scalability**: Optimized storage and memory usage.
+*   **Modular Queries**: Fetch only technical health or only AI insights based on the UI view.
+*   **Business Intelligence**: Fast filtering by `business_type` across the entire dataset.

@@ -9,6 +9,7 @@ from app.core.config import (
     SITEWIDE_BENCHMARKS,
 )
 from app.utils.helpers import (
+    clamp,
     format_percentage,
     format_ratio,
     maximum_attainment,
@@ -61,16 +62,20 @@ def _finding(
     priority: str,
     evidence: list[dict] | None = None,
 ) -> dict:
+    # STEP 4: CLAMP SCORE
+    final_score = clamp(score)
+    
     return {
         "category": category,
         "metric": metric,
         "current_value": current_value,
         "benchmark": benchmark,
-        "status": status_from_score(score),
+        "status": status_from_score(final_score),
         "business_impact": business_impact,
         "recommendation": recommendation,
         "priority": priority,
         "evidence": evidence or [],
+        "score": final_score,
     }
 
 
@@ -103,6 +108,24 @@ def _build_title_finding(title: str, page_url: str = "") -> tuple[float, dict, d
     benchmark = SEO_BENCHMARKS["title_length"]
     title_length = len(title)
     score = range_attainment(title_length, benchmark["min"], benchmark["max"])
+    
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low"
+
+    # Dynamic Adjustment based on priority impact
+    if not title:
+        score = 0.0
+        priority = "High"
+    elif score < 50:
+        priority = "High"
+        score = max(0.0, score - 15) # Penalty for poor quality
+    elif score < 90:
+        priority = "Medium"
+    else:
+        priority = "Low"
+
     evidence = _build_evidence(page_url, f"Title length measured at {title_length} characters.")
 
     if not title:
@@ -114,7 +137,6 @@ def _build_title_finding(title: str, page_url: str = "") -> tuple[float, dict, d
         recommendation = (
             "Publish a 50-60 character title aligned to the page's primary commercial intent."
         )
-        priority = "High"
     elif benchmark["min"] <= title_length <= benchmark["max"]:
         current_value = (
             f"{format_percentage(score)} benchmark attainment with a {title_length}-character title."
@@ -124,7 +146,6 @@ def _build_title_finding(title: str, page_url: str = "") -> tuple[float, dict, d
             "and steadier acquisition from high-intent searches."
         )
         recommendation = "Maintain the current title length and keep the primary keyword near the front."
-        priority = "Low"
     elif title_length < benchmark["min"]:
         current_value = (
             f"{format_percentage(score)} of the minimum benchmark with a {title_length}-character title."
@@ -136,7 +157,6 @@ def _build_title_finding(title: str, page_url: str = "") -> tuple[float, dict, d
         recommendation = (
             "Expand the title to 50-60 characters while preserving brand and service intent."
         )
-        priority = priority_from_score(score)
     else:
         current_value = (
             f"{format_percentage(score)} of the maximum benchmark with a {title_length}-character title."
@@ -146,7 +166,6 @@ def _build_title_finding(title: str, page_url: str = "") -> tuple[float, dict, d
             "and can suppress click-through rate on revenue-driving queries."
         )
         recommendation = "Trim the title to 50-60 characters to protect mobile visibility and CTR."
-        priority = priority_from_score(score)
 
     snapshot = _snapshot(
         metric="Title Optimization",
@@ -177,6 +196,23 @@ def _build_meta_description_finding(
     benchmark = SEO_BENCHMARKS["meta_description_length"]
     description_length = len(description)
     score = range_attainment(description_length, benchmark["min"], benchmark["max"])
+    
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low"
+
+    if not description:
+        score = 0.0
+        priority = "High"
+    elif score < 60:
+        priority = "High"
+        score = max(0, score - 10)
+    elif score < 90:
+        priority = "Medium"
+    else:
+        priority = "Low"
+
     evidence = _build_evidence(
         page_url,
         f"Meta description length measured at {description_length} characters.",
@@ -191,7 +227,6 @@ def _build_meta_description_finding(
         recommendation = (
             "Add a 140-160 character meta description that communicates the page's commercial outcome."
         )
-        priority = "High"
     elif benchmark["min"] <= description_length <= benchmark["max"]:
         current_value = (
             f"{format_percentage(score)} benchmark attainment with a {description_length}-character description."
@@ -201,7 +236,6 @@ def _build_meta_description_finding(
             "and support stronger branded perception."
         )
         recommendation = "Maintain the current description length and refresh messaging as offers evolve."
-        priority = "Low"
     elif description_length < benchmark["min"]:
         current_value = (
             f"{format_percentage(score)} of the minimum benchmark with a {description_length}-character description."
@@ -213,7 +247,6 @@ def _build_meta_description_finding(
         recommendation = (
             "Expand the description to 140-160 characters with service, outcome, and location cues."
         )
-        priority = priority_from_score(score)
     else:
         current_value = (
             f"{format_percentage(score)} of the maximum benchmark with a {description_length}-character description."
@@ -225,7 +258,6 @@ def _build_meta_description_finding(
         recommendation = (
             "Tighten the description to 140-160 characters and keep the strongest benefit up front."
         )
-        priority = priority_from_score(score)
 
     snapshot = _snapshot(
         metric="Meta Description",
@@ -252,27 +284,34 @@ def _build_meta_description_finding(
 def _build_h1_finding(h1_tags: list[str], page_url: str = "") -> tuple[float, dict, dict]:
     benchmark = SEO_BENCHMARKS["h1_count"]
     h1_count = len(h1_tags)
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low"
+
     evidence = _build_evidence(page_url, f"Detected {h1_count} H1 tags on the page.")
 
     if h1_count == benchmark["target"]:
         score = 100.0
+        priority = "Low"
         current_value = "100% heading-structure compliance with a single primary H1."
         business_impact = (
             "A single H1 sharpens topical clarity for search engines and keeps the page's commercial message focused for users."
         )
         recommendation = "Maintain one authoritative H1 that reflects the primary service intent."
-        priority = "Low"
     elif h1_count == 0:
         score = 0.0
+        priority = "High"
         current_value = "0% heading-structure compliance because no H1 was found."
         business_impact = (
             "Without a primary H1, crawlers and users receive a weaker topical signal, which can hurt rankings, "
             "engagement, and lead-form confidence."
         )
         recommendation = "Add one clear H1 that matches the page's main service and search intent."
-        priority = "High"
     else:
-        score = round(100 / h1_count, 1)
+        # Multiple H1s
+        score = clamp(100 - (h1_count - 1) * 30) # Heavy penalty for multiple H1s
+        priority = "High"
         current_value = (
             f"{format_percentage(score)} alignment to the single-H1 benchmark with {h1_count} competing H1 tags."
         )
@@ -283,7 +322,6 @@ def _build_h1_finding(h1_tags: list[str], page_url: str = "") -> tuple[float, di
         recommendation = (
             "Reduce the page to one primary H1 and move supporting statements into H2/H3 headings."
         )
-        priority = "High"
 
     snapshot = _snapshot(
         metric="Heading Structure",
@@ -293,7 +331,7 @@ def _build_h1_finding(h1_tags: list[str], page_url: str = "") -> tuple[float, di
     )
 
     finding = _finding(
-        category="Content Architecture",
+        category="Headings",
         metric="Heading Structure",
         current_value=current_value,
         benchmark=f"2026 standard: {benchmark['label']}.",
@@ -313,6 +351,11 @@ def _build_mobile_finding(
 ) -> tuple[float, dict, dict]:
     benchmark = SEO_BENCHMARKS["viewport_meta"]
     score = 100.0 if has_viewport_meta else 0.0
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low" if has_viewport_meta else "High"
+    
     evidence = _build_evidence(
         page_url,
         "Viewport meta tag detected." if has_viewport_meta else "Viewport meta tag missing.",
@@ -326,7 +369,6 @@ def _build_mobile_finding(
         recommendation = (
             "Maintain the viewport declaration and validate responsive layout on revenue-driving pages."
         )
-        priority = "Low"
     else:
         current_value = "0% mobile-first baseline compliance because the viewport meta tag is missing."
         business_impact = (
@@ -335,7 +377,6 @@ def _build_mobile_finding(
         recommendation = (
             "Add a responsive viewport meta tag to satisfy mobile-first indexing expectations."
         )
-        priority = "High"
 
     snapshot = _snapshot(
         metric="Mobile-First Readiness",
@@ -345,7 +386,7 @@ def _build_mobile_finding(
     )
 
     finding = _finding(
-        category="Mobile Experience",
+        category="Technical",
         metric="Mobile-First Readiness",
         current_value=current_value,
         benchmark=f"2026 standard: {benchmark['label']}.",
@@ -373,16 +414,25 @@ def _build_image_finding(
 
     if total_images > 0:
         score = round((optimized_images / total_images) * 100, 1)
+        
+        # Priority Adjustment
+        if score < 40:
+            priority = "High"
+            score = max(0.0, score - 10)
+        elif score < 80:
+            priority = "Medium"
+        else:
+            priority = "Low"
+
         current_value = (
             f"{format_ratio(optimized_images, total_images)} descriptive alt-text coverage across on-page images."
         )
 
-        if score >= benchmark["target"]:
+        if score >= 90:
             business_impact = (
                 "Full alt-text coverage strengthens accessibility, protects brand perception, and improves the page's ability to capture image-search visibility."
             )
             recommendation = "Maintain descriptive alt text as new visual assets are added."
-            priority = "Low"
         else:
             business_impact = (
                 "Incomplete alt-text coverage reduces accessibility compliance, weakens image-search discoverability, and can undermine trust with users who rely on assistive technologies."
@@ -390,15 +440,14 @@ def _build_image_finding(
             recommendation = (
                 "Add descriptive alt text to all product, service, and trust-building images."
             )
-            priority = priority_from_score(score, hard_fail=score < 60)
     else:
-        score = 70.0
-        current_value = "0% visual-support utilization because no crawlable images were detected."
+        score = 100.0
+        priority = "Low"
+        current_value = "No sampled images detected across crawled pages."
         business_impact = (
             "A page without supporting visuals misses opportunities to build trust, communicate proof points, and win incremental image-search visibility."
         )
         recommendation = "Introduce relevant visuals with descriptive alt text on key commercial pages."
-        priority = "Low"
 
     snapshot = _snapshot(
         metric="Image Accessibility",
@@ -408,7 +457,7 @@ def _build_image_finding(
     )
 
     finding = _finding(
-        category="Media Optimization",
+        category="Accessibility",
         metric="Image Accessibility",
         current_value=current_value,
         benchmark=f"2026 standard: {benchmark['label']}.",
@@ -432,6 +481,11 @@ def _build_link_finding(
     external_links = _count_items(external_links)
     total_links = internal_links + external_links
     density = round((internal_links / total_links) * 100, 1) if total_links else 0.0
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low"
+
     evidence = _build_evidence(
         page_url,
         f"Internal link density measured at {format_percentage(density)} from {total_links} crawlable links.",
@@ -439,6 +493,7 @@ def _build_link_finding(
 
     if total_links == 0:
         score = 0.0
+        priority = "High"
         current_value = "0% internal link density because the page exposes no crawlable links."
         business_impact = (
             "Pages without crawlable links trap authority, limit discovery of adjacent revenue pages, and reduce the site's ability to guide visitors into conversion paths."
@@ -446,35 +501,39 @@ def _build_link_finding(
         recommendation = (
             "Add internal links to related services, proof pages, and conversion destinations."
         )
-        priority = "High"
     else:
         score = (
             100.0
             if density >= benchmark["min"]
             else round((density / benchmark["min"]) * 100, 1)
         )
-        current_value = f"{format_percentage(density)} internal link density across crawlable links."
-
+        
+        # Specific Penalties
         if internal_links < 5:
             score = max(0.0, score - 50.0)
-            business_impact = "Bare isolated pages fail to circulate structural equity."
-            recommendation = "Low internal linking"
             priority = "High"
             current_value = f"Only {internal_links} internal links detected on this template."
         elif external_links > 100:
             score = max(0.0, score - 20.0)
-            business_impact = "Uncontrolled outbound links dilute PageRank flow and trigger spam heuristics."
-            recommendation = "Limit external outbound references per page."
             priority = "High"
             current_value = f"{external_links} external outbound nodes vastly exceed standard thresholds."
-        elif density >= benchmark["min"]:
+        elif score < 50:
+            priority = "High"
+        elif score < 80:
+            priority = "Medium"
+        else:
+            priority = "Low"
+
+        if "Only" not in current_value and "vastly exceed" not in current_value:
+            current_value = f"{format_percentage(density)} internal link density across crawlable links."
+
+        if score >= 90:
             business_impact = (
                 "Healthy internal linking improves crawl efficiency, distributes authority to commercial pages, and helps visitors move deeper into lead-generation funnels."
             )
             recommendation = (
                 "Maintain strong internal pathways from this page into adjacent service and contact pages."
             )
-            priority = "Low"
         else:
             business_impact = (
                 "Low internal link density slows crawler discovery and weakens the handoff from informational pages into high-intent conversion journeys."
@@ -482,7 +541,6 @@ def _build_link_finding(
             recommendation = (
                 "Increase internal links to related service, case-study, and contact pages to strengthen crawl flow and conversions."
             )
-            priority = priority_from_score(score, hard_fail=density < 35)
 
     snapshot = _snapshot(
         metric="Internal Link Density",
@@ -492,7 +550,7 @@ def _build_link_finding(
     )
 
     finding = _finding(
-        category="Internal Linking",
+        category="Links",
         metric="Internal Link Density",
         current_value=current_value,
         benchmark=f"2026 standard: {benchmark['label']}.",
@@ -510,8 +568,12 @@ def _build_canonical_finding(
     has_canonical: bool,
     page_url: str = "",
 ) -> tuple[float, dict, dict]:
-    benchmark = SEO_BENCHMARKS["canonical"]
     score = 100.0 if has_canonical else 0.0
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low" if has_canonical else "High"
+    
     evidence = _build_evidence(
         page_url,
         "Canonical tag detected." if has_canonical else "Canonical tag missing.",
@@ -523,27 +585,25 @@ def _build_canonical_finding(
             "Canonical tags concentrate search equity and prevent parameter-based duplicate content dilution."
         )
         recommendation = "Maintain proper self-referencing canonical structures on all core pages."
-        priority = "Low"
     else:
         current_value = "0% duplicate content protection because the canonical tag is missing."
         business_impact = (
             "A missing canonical tag creates duplicate content risk, splitting link equity and confusing indexers."
         )
         recommendation = "Add canonical tag to avoid duplicate content issues"
-        priority = "High"
 
     snapshot = _snapshot(
         metric="Canonical Tag",
         current_value=current_value,
-        benchmark=f"2026 standard: {benchmark['label']}.",
+        benchmark="2026 standard: Self-referencing canonical tag present.",
         score=score,
     )
 
     finding = _finding(
-        category="Metadata",
+        category="Technical",
         metric="Canonical Tag",
         current_value=current_value,
-        benchmark=f"2026 standard: {benchmark['label']}.",
+        benchmark="2026 standard: Self-referencing canonical tag present.",
         score=score,
         business_impact=business_impact,
         recommendation=recommendation,
@@ -559,18 +619,29 @@ def _build_authority_finding(
     page_url: str = "",
 ) -> tuple[float, dict, dict]:
     score = float(page_authority)
+    
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low"
+
+    if score < 40:
+        priority = "High"
+    elif score < 70:
+        priority = "Medium"
+    else:
+        priority = "Low"
+
     evidence = _build_evidence(page_url, f"Calculated Mock Page Authority: {page_authority}")
 
     if page_authority < 40:
         current_value = f"Authority score is critically low at {page_authority}/100."
         business_impact = "Pages with low structural authority suffer poor rankings in competitive SERPs."
         recommendation = "Low authority score - enhance internal linking density and content depth."
-        priority = "High"
     else:
         current_value = f"Healthy authority score at {page_authority}/100."
         business_impact = "Strong structural authority signals high quality and trust to indexers."
         recommendation = "Maintain content depth and strong interlinking."
-        priority = "Low"
 
     snapshot = _snapshot(
         metric="Domain Authority",
@@ -580,7 +651,7 @@ def _build_authority_finding(
     )
 
     finding = _finding(
-        category="Domain Authority",
+        category="Technical",
         metric="Domain Authority",
         current_value=current_value,
         benchmark="2026 standard: 60%+",
@@ -598,10 +669,21 @@ def _build_dofollow_finding(
     nofollow_links: int,
     page_url: str = "",
 ) -> tuple[float, dict, dict]:
-    from app.utils.helpers import format_percentage
     total_links = dofollow_links + nofollow_links
     nofollow_ratio = (nofollow_links / total_links) if total_links > 0 else 0.0
     score = 100.0 if nofollow_ratio <= 0.50 else max(0.0, 100.0 - (nofollow_ratio - 0.50) * 200)
+    
+    current_value = "N/A"
+    business_impact = "No data available."
+    recommendation = "Review this metric for potential improvements."
+    priority = "Low"
+
+    if score < 50:
+        priority = "High"
+    elif score < 90:
+        priority = "Medium"
+    else:
+        priority = "Low"
 
     evidence = _build_evidence(page_url, f"{dofollow_links} dofollow, {nofollow_links} nofollow.")
 
@@ -609,12 +691,10 @@ def _build_dofollow_finding(
         current_value = f"Nofollow ratio is {format_percentage(nofollow_ratio * 100)}."
         business_impact = "Excessive nofollow limits link equity distribution and throttles site health."
         recommendation = "Too many nofollow links - change internal links to dofollow."
-        priority = "High"
     else:
         current_value = f"Healthy distribution: {dofollow_links} dofollow, {nofollow_links} nofollow."
         business_impact = "Proper link equity distribution flows natively without artificial capping."
         recommendation = "Maintain natural follow distributions."
-        priority = "Low"
 
     valid_dofollow_pct = (dofollow_links/max(total_links,1))*100
     snapshot = _snapshot(
@@ -625,7 +705,7 @@ def _build_dofollow_finding(
     )
 
     finding = _finding(
-        category="Internal Linking",
+        category="Links",
         metric="Link Type Distribution",
         current_value=current_value,
         benchmark="2026 standard: Balanced distribution",
@@ -636,6 +716,19 @@ def _build_dofollow_finding(
         evidence=evidence,
     )
     return score, snapshot, finding
+
+
+def _calculate_module_score(findings: list[dict]) -> tuple[float, list[str], list[str]]:
+    if not findings:
+        return 100.0, [], []
+    
+    scores = [f["score"] for f in findings]
+    avg_score = round(sum(scores) / len(scores), 1)
+    
+    issues = [f["metric"] for f in findings if f["score"] < 80]
+    recommendations = [f["recommendation"] for f in findings if f["score"] < 80]
+    
+    return avg_score, issues, recommendations
 
 
 def audit_seo(data: Dict[str, Any], page_url: str = "") -> dict:
@@ -657,94 +750,100 @@ def audit_seo(data: Dict[str, Any], page_url: str = "") -> dict:
     nofollow_links = data.get("nofollow_links", 0)
     page_authority = data.get("page_authority", 0)
 
-    scores = {}
     metric_summary = []
-    findings = []
+    all_findings = []
 
+    # 1. Metadata Module
     title_score, title_snapshot, title_finding = _build_title_finding(title, page_url)
-    scores["title"] = title_score
-    metric_summary.append(title_snapshot)
-    findings.append(title_finding)
-
-    meta_score, meta_snapshot, meta_finding = _build_meta_description_finding(
-        description,
-        page_url,
-    )
-    scores["meta_description"] = meta_score
-    metric_summary.append(meta_snapshot)
-    findings.append(meta_finding)
-
+    meta_score, meta_snapshot, meta_finding = _build_meta_description_finding(description, page_url)
+    can_score, can_snapshot, can_finding = _build_canonical_finding(has_canonical, page_url)
+    
+    metadata_findings = [title_finding, meta_finding, can_finding]
+    metadata_score, metadata_issues, metadata_recs = _calculate_module_score(metadata_findings)
+    
+    # 2. Headings Module
     heading_score, heading_snapshot, heading_finding = _build_h1_finding(h1_tags, page_url)
-    scores["heading_structure"] = heading_score
-    metric_summary.append(heading_snapshot)
-    findings.append(heading_finding)
+    heading_findings = [heading_finding]
+    headings_score, headings_issues, headings_recs = _calculate_module_score(heading_findings)
+    
+    # 3. Technical Module
+    mobile_score, mobile_snapshot, mobile_finding = _build_mobile_finding(has_viewport_meta, page_url)
+    auth_score, auth_snapshot, auth_finding = _build_authority_finding(page_authority, page_url)
+    
+    technical_findings = [mobile_finding, auth_finding]
+    technical_score, technical_issues, technical_recs = _calculate_module_score(technical_findings)
+    
+    # 4. Links Module
+    follow_score, follow_snapshot, follow_finding = _build_dofollow_finding(dofollow_links, nofollow_links, page_url)
+    link_density_score, link_density_snapshot, link_density_finding = _build_link_finding(internal_links, external_links, page_url)
+    
+    links_findings = [follow_finding, link_density_finding]
+    links_score, links_issues, links_recs = _calculate_module_score(links_findings)
+    
+    # 5. Accessibility Module
+    image_score, image_snapshot, image_finding = _build_image_finding(total_images, missing_alt, page_url)
+    accessibility_findings = [image_finding]
+    accessibility_score, accessibility_issues, accessibility_recs = _calculate_module_score(accessibility_findings)
+    
+    # 6. Performance (Placeholder for single page, usually handled sitewide)
+    performance_score = data.get("performance_score", 100.0)
 
-    mobile_score, mobile_snapshot, mobile_finding = _build_mobile_finding(
-        has_viewport_meta,
-        page_url,
-    )
-    scores["mobile_first"] = mobile_score
-    metric_summary.append(mobile_snapshot)
-    findings.append(mobile_finding)
+    # Collect all summaries and findings for the main response
+    metric_summary.extend([title_snapshot, meta_snapshot, heading_snapshot, mobile_snapshot, 
+                          can_snapshot, auth_snapshot, follow_snapshot, image_snapshot, link_density_snapshot])
+    all_findings.extend(metadata_findings + heading_findings + technical_findings + links_findings + accessibility_findings)
 
-    canonical_score, canonical_snapshot, canonical_finding = _build_canonical_finding(
-        has_canonical,
-        page_url,
-    )
-    scores["canonical_tag"] = canonical_score
-    metric_summary.append(canonical_snapshot)
-    findings.append(canonical_finding)
+    # Final Weighted Calculation
+    score_map = {
+        "metadata": metadata_score,
+        "headings": headings_score,
+        "technical": technical_score,
+        "performance": performance_score,
+        "links": links_score,
+        "accessibility": accessibility_score
+    }
+    
+    overall_score = weighted_score(score_map, AUDIT_WEIGHTS)
 
-    auth_score, auth_snapshot, auth_finding = _build_authority_finding(
-        page_authority,
-        page_url,
-    )
-    scores["page_authority"] = auth_score
-    metric_summary.append(auth_snapshot)
-    findings.append(auth_finding)
+    # Score Breakdown
+    score_breakdown = []
+    for module, weight in AUDIT_WEIGHTS.items():
+        m_score = score_map.get(module, 100.0)
+        m_findings = [f for f in all_findings if f["category"].lower() == module.lower()]
+        m_impact = "Low"
+        m_reason = "No major issues"
+        
+        failed_findings = [f for f in m_findings if f["score"] < 80]
+        if failed_findings:
+            m_impact = failed_findings[0]["priority"]
+            m_reason = failed_findings[0]["metric"]
+        
+        score_breakdown.append({
+            "module": module,
+            "score": m_score,
+            "impact": m_impact,
+            "reason": m_reason
+        })
 
-    follow_score, follow_snapshot, follow_finding = _build_dofollow_finding(
-        dofollow_links,
-        nofollow_links,
-        page_url,
-    )
-    scores["dofollow_ratio"] = follow_score
-    metric_summary.append(follow_snapshot)
-    findings.append(follow_finding)
-
-    image_score, image_snapshot, image_finding = _build_image_finding(
-        total_images,
-        missing_alt,
-        page_url,
-    )
-    scores["image_accessibility"] = image_score
-    metric_summary.append(image_snapshot)
-    findings.append(image_finding)
-
-    link_score, link_snapshot, link_finding = _build_link_finding(
-        internal_links,
-        external_links,
-        page_url,
-    )
-    scores["linking_strategy"] = link_score
-    metric_summary.append(link_snapshot)
-    findings.append(link_finding)
-
-    overall_score = weighted_score(scores, AUDIT_WEIGHTS)
-    metadata_score = round((title_score + meta_score) / 2, 1)
+    # Key Issue
+    lowest_module = min(score_breakdown, key=lambda x: x["score"])
+    key_issue = f"{lowest_module['module'].title()}: {lowest_module['reason']}" if lowest_module["score"] < 80 else "None"
 
     return {
         "benchmark_reference_year": SEO_BENCHMARK_YEAR,
         "overall_score": overall_score,
         "overall_seo_health": format_percentage(overall_score),
+        "key_issue": key_issue,
         "metric_summary": metric_summary,
-        "findings": sort_by_priority(findings),
+        "findings": sort_by_priority(all_findings),
+        "score_breakdown": score_breakdown,
         "category_scores": {
             "metadata": format_percentage(metadata_score),
-            "content_structure": format_percentage(heading_score),
-            "mobile_first": format_percentage(mobile_score),
-            "image_accessibility": format_percentage(image_score),
-            "internal_link_density": format_percentage(link_score),
+            "headings": format_percentage(headings_score),
+            "technical": format_percentage(technical_score),
+            "performance": format_percentage(performance_score),
+            "links": format_percentage(links_score),
+            "accessibility": format_percentage(accessibility_score),
         },
     }
 
@@ -765,13 +864,29 @@ def _sitewide_coverage_finding(
     recommendation: str,
     evidence: list[dict],
 ) -> tuple[float, dict, dict]:
+    current_value = "N/A"
+    business_impact = business_impact or "No data available."
+    recommendation = recommendation or "Review this metric for potential improvements."
+    priority = "Low"
+
     benchmark = SITEWIDE_BENCHMARKS[metric_key]
     percentage = _percentage_count(matched_count, total_count)
     score = minimum_attainment(percentage, benchmark["min"])
+    
+    # STEP 3: METRIC-BASED ADJUSTMENT
+    if metric_name == "Title Coverage" or metric_name == "Meta Description Coverage":
+        if percentage < 50:
+            score = max(0.0, score - 20)
+    
+    priority = "Low"
+    if score < 40:
+        priority = "High"
+    elif score < 80:
+        priority = "Medium"
+
     current_value = (
         f"{format_percentage(percentage)} of sampled pages ({matched_count}/{total_count}) meet this benchmark."
     )
-    priority = priority_from_score(score, hard_fail=percentage < benchmark["min"] * 0.6)
 
     snapshot = _snapshot(
         metric=metric_name,
@@ -796,12 +911,7 @@ def _sitewide_coverage_finding(
 
 
 def _build_page_summary(page: dict, page_audit: dict) -> dict:
-    findings = page_audit.get("findings", [])
-    top_issue = "No major sampled issue"
-
-    if findings:
-        top_finding = findings[0]
-        top_issue = f"{top_finding['metric']}: {top_finding['status']}"
+    top_issue = page_audit.get("key_issue", "No major issues")
 
     return {
         "url": page.get("url", ""),
@@ -835,21 +945,25 @@ def _duplicate_coverage(pages: list[dict], field_name: str) -> tuple[int, list[d
 
 
 def _build_page_speed_finding(page_speed_data: dict) -> tuple[float, dict, dict]:
-    score = page_speed_data.get("score", 0)
+    score = float(page_speed_data.get("score", 0))
     response_time = page_speed_data.get("response_time", 0.0)
     page_size_kb = page_speed_data.get("page_size_kb", 0.0)
-    status = page_speed_data.get("status", "Failed")
-
+    
     if score < 50:
-        current_value = f"Score: {score} (Time: {response_time}s, Size: {page_size_kb}KB)"
+        priority = "High"
+    elif score < 90:
+        priority = "Medium"
+    else:
+        priority = "Low"
+
+    current_value = f"Score: {score} (Time: {response_time}s, Size: {page_size_kb}KB)"
+    
+    if score < 50:
         business_impact = "Slow load times dramatically increase bounce rate, penalize search rankings, and hemorrhage conversion potential."
         recommendation = "Optimize images, reduce scripts, enable caching"
-        priority = "High"
     else:
-        current_value = f"Score: {score} (Time: {response_time}s, Size: {page_size_kb}KB)"
         business_impact = "Fast architectures maximize crawl budget efficiency and retain user attention during commercial discovery."
         recommendation = "Maintain current asset bundling and caching rules."
-        priority = "Low"
 
     snapshot = _snapshot(
         metric="Page Speed",
@@ -869,7 +983,8 @@ def _build_page_speed_finding(page_speed_data: dict) -> tuple[float, dict, dict]
         priority=priority,
         evidence=_build_evidence("Site Root", f"Response time: {response_time}s. Size: {page_size_kb}KB."),
     )
-    return float(score), snapshot, finding
+    return score, snapshot, finding
+
 
 def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict], page_speed_data: dict = None) -> dict:
     pages = crawl_data.get("pages", [])
@@ -888,465 +1003,67 @@ def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict], page_spe
 
     findings = []
     metric_summary = []
-    score_map = {}
 
-    title_optimized_pages = [
-        page
-        for page in pages
-        if SEO_BENCHMARKS["title_length"]["min"]
-        <= page.get("title_length", 0)
-        <= SEO_BENCHMARKS["title_length"]["max"]
-    ]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="title_coverage",
-        metric_name="Title Coverage",
-        matched_count=len(title_optimized_pages),
-        total_count=total_pages,
-        category="Metadata",
-        business_impact=(
-            "Low title coverage weakens search-result messaging across the site, reducing click-through rate and making demand capture inconsistent."
-        ),
-        recommendation=(
-            "Normalize titles across sampled pages so each one lands within the benchmark range and reflects unique search intent."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: not (
-                SEO_BENCHMARKS["title_length"]["min"]
-                <= page.get("title_length", 0)
-                <= SEO_BENCHMARKS["title_length"]["max"]
-            ),
-            lambda page: f"Title length is {page.get('title_length', 0)} characters.",
-        ),
-    )
-    score_map["title_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
+    # Metadata Module
+    title_optimized_pages = [p for p in pages if SEO_BENCHMARKS["title_length"]["min"] <= p.get("title_length", 0) <= SEO_BENCHMARKS["title_length"]["max"]]
+    title_score, title_snap, title_find = _sitewide_coverage_finding("title_coverage", "Title Coverage", len(title_optimized_pages), total_pages, "Metadata", "Low title coverage weakens CTR", "Normalize titles", [])
+    
+    meta_optimized_pages = [p for p in pages if SEO_BENCHMARKS["meta_description_length"]["min"] <= p.get("meta_description_length", 0) <= SEO_BENCHMARKS["meta_description_length"]["max"]]
+    meta_score, meta_snap, meta_find = _sitewide_coverage_finding("meta_description_coverage", "Meta Description Coverage", len(meta_optimized_pages), total_pages, "Metadata", "Weak description coverage reduces control", "Write unique descriptions", [])
+    
+    unique_title_count, _ = _duplicate_coverage(pages, "title")
+    ut_score, ut_snap, ut_find = _sitewide_coverage_finding("unique_title_coverage", "Title Uniqueness", unique_title_count, total_pages, "Metadata", "Duplicate titles cause competition", "Rewrite duplicates", [])
+    
+    metadata_module_score = round((title_score + meta_score + ut_score) / 3, 1)
+    findings.extend([title_find, meta_find, ut_find])
+    metric_summary.extend([title_snap, meta_snap, ut_snap])
 
-    meta_optimized_pages = [
-        page
-        for page in pages
-        if SEO_BENCHMARKS["meta_description_length"]["min"]
-        <= page.get("meta_description_length", 0)
-        <= SEO_BENCHMARKS["meta_description_length"]["max"]
-    ]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="meta_description_coverage",
-        metric_name="Meta Description Coverage",
-        matched_count=len(meta_optimized_pages),
-        total_count=total_pages,
-        category="Metadata",
-        business_impact=(
-            "Weak description coverage reduces message control in search snippets and leaves too much conversion-critical copy to Google's automation."
-        ),
-        recommendation=(
-            "Write unique 140-160 character descriptions for every commercially relevant sampled page."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: not (
-                SEO_BENCHMARKS["meta_description_length"]["min"]
-                <= page.get("meta_description_length", 0)
-                <= SEO_BENCHMARKS["meta_description_length"]["max"]
-            ),
-            lambda page: (
-                f"Meta description length is {page.get('meta_description_length', 0)} characters."
-            ),
-        ),
-    )
-    score_map["meta_description_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
-
+    # Content Module
     h1_compliant_pages = [page for page in pages if page.get("h1_count", 0) == 1]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="h1_compliance",
-        metric_name="H1 Compliance",
-        matched_count=len(h1_compliant_pages),
-        total_count=total_pages,
-        category="Content Architecture",
-        business_impact=(
-            "Inconsistent H1 usage creates weak topical hierarchy across the site and makes it harder for both crawlers and buyers to understand page purpose quickly."
-        ),
-        recommendation=(
-            "Standardize each sampled page to one clear H1 tied to the page's primary intent."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: page.get("h1_count", 0) != 1,
-            lambda page: f"Detected {page.get('h1_count', 0)} H1 tags.",
-        ),
-    )
-    score_map["h1_compliance"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
-
-    canonical_pages = [page for page in pages if page.get("has_canonical")]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="canonical_coverage",
-        metric_name="Canonical Coverage",
-        matched_count=len(canonical_pages),
-        total_count=total_pages,
-        category="Indexation Governance",
-        business_impact=(
-            "Weak canonical coverage increases the probability of duplicate content confusion, diluted ranking signals, and unstable indexing outcomes."
-        ),
-        recommendation=(
-            "Add self-referencing canonical tags to sampled indexable pages and verify they resolve cleanly."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: not page.get("has_canonical"),
-            lambda _page: "Canonical tag missing.",
-        ),
-    )
-    score_map["canonical_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
-
-    indexable_pages = [page for page in pages if page.get("is_indexable", True)]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="indexability_coverage",
-        metric_name="Indexability Coverage",
-        matched_count=len(indexable_pages),
-        total_count=total_pages,
-        category="Indexation Governance",
-        business_impact=(
-            "Unexpected noindex directives suppress organic reach and can remove strategic pages from the revenue pipeline."
-        ),
-        recommendation=(
-            "Review every sampled noindex page and confirm it is intentionally excluded from search."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: not page.get("is_indexable", True),
-            lambda page: (
-                f"Page marked non-indexable via robots directives: {page.get('robots_directives', 'noindex')}."
-            ),
-        ),
-    )
-    score_map["indexability_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
-
-    structured_data_pages = [page for page in pages if page.get("has_structured_data")]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="structured_data_coverage",
-        metric_name="Structured Data Adoption",
-        matched_count=len(structured_data_pages),
-        total_count=total_pages,
-        category="SERP Enhancements",
-        business_impact=(
-            "Low schema adoption limits eligibility for richer SERP treatments and can weaken search engines' understanding of the site's entities and offers."
-        ),
-        recommendation=(
-            "Implement structured data on the homepage and core commercial pages, starting with Organization, Website, Service, and Breadcrumb schema where appropriate."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: not page.get("has_structured_data"),
-            lambda _page: "No structured data detected.",
-        ),
-    )
-    score_map["structured_data_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
-
-    social_metadata_pages = [
-        page
-        for page in pages
-        if page.get("has_open_graph") or page.get("has_twitter_card")
-    ]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="social_metadata_coverage",
-        metric_name="Social Metadata Coverage",
-        matched_count=len(social_metadata_pages),
-        total_count=total_pages,
-        category="Brand Distribution",
-        business_impact=(
-            "Weak Open Graph and Twitter coverage reduces control over how the brand appears when pages are shared, which affects click-through and perceived credibility."
-        ),
-        recommendation=(
-            "Add consistent Open Graph and Twitter metadata to all sampled marketing and trust-building pages."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: not (
-                page.get("has_open_graph") or page.get("has_twitter_card")
-            ),
-            lambda _page: "No Open Graph or Twitter card metadata detected.",
-        ),
-    )
-    score_map["social_metadata_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
-
+    h1_score, h1_snap, h1_find = _sitewide_coverage_finding("h1_compliance", "H1 Compliance", len(h1_compliant_pages), total_pages, "Headings", "Inconsistent H1 usage", "Standardize H1", [])
+    
     substantive_pages = [page for page in pages if page.get("word_count", 0) >= 300]
-    score, snapshot, finding = _sitewide_coverage_finding(
-        metric_key="substantive_content_coverage",
-        metric_name="Substantive Content Coverage",
-        matched_count=len(substantive_pages),
-        total_count=total_pages,
-        category="Content Depth",
-        business_impact=(
-            "Thin commercial pages struggle to answer buyer questions, making it harder to rank competitively and convert interest into enquiries."
-        ),
-        recommendation=(
-            "Expand sampled thin pages with clearer service detail, proof points, FAQs, and conversion cues."
-        ),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: page.get("word_count", 0) < 300,
-            lambda page: f"Word count measured at {page.get('word_count', 0)} words.",
-        ),
-    )
-    score_map["substantive_content_coverage"] = score
-    metric_summary.append(snapshot)
-    findings.append(finding)
+    sub_score, sub_snap, sub_find = _sitewide_coverage_finding("substantive_content_coverage", "Content Depth", len(substantive_pages), total_pages, "Headings", "Thin pages struggle to rank", "Expand thin pages", [])
+    
+    content_module_score = round((h1_score + sub_score) / 2, 1)
+    findings.extend([h1_find, sub_find])
+    metric_summary.extend([h1_snap, sub_snap])
 
-    total_images = sum(page.get("total_images", 0) for page in pages)
-    optimized_images = sum(
-        max(page.get("total_images", 0) - len(page.get("missing_alt_images", [])), 0)
-        for page in pages
-    )
-    alt_text_percentage = (
-        round((optimized_images / total_images) * 100, 1) if total_images else 75.0
-    )
-    alt_score = minimum_attainment(
-        alt_text_percentage,
-        SITEWIDE_BENCHMARKS["alt_text_coverage"]["min"],
-    )
-    alt_current_value = (
-        f"{format_percentage(alt_text_percentage)} sitewide alt-text coverage across sampled images."
-        if total_images
-        else "No sampled images detected across crawled pages."
-    )
-    alt_finding = _finding(
-        category="Media Optimization",
-        metric="Sitewide Alt Text Coverage",
-        current_value=alt_current_value,
-        benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['alt_text_coverage']['label']}.",
-        score=alt_score,
-        business_impact=(
-            "Poor alt-text discipline weakens accessibility coverage, limits image search visibility, and chips away at trust on visually important pages."
-        ),
-        recommendation=(
-            "Audit image libraries and enforce descriptive alt text on all functional and trust-building images."
-        ),
-        priority=priority_from_score(alt_score, hard_fail=alt_text_percentage < 60),
-        evidence=_collect_page_evidence(
-            pages,
-            lambda page: len(page.get("missing_alt_images", [])) > 0,
-            lambda page: (
-                f"{len(page.get('missing_alt_images', []))} images missing alt text out of {page.get('total_images', 0)}."
-            ),
-        ),
-    )
-    score_map["alt_text_coverage"] = alt_score
-    metric_summary.append(
-        _snapshot(
-            metric="Sitewide Alt Text Coverage",
-            current_value=alt_current_value,
-            benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['alt_text_coverage']['label']}.",
-            score=alt_score,
-        )
-    )
-    findings.append(alt_finding)
+    # Indexation Module
+    canonical_pages = [page for page in pages if page.get("has_canonical")]
+    can_score, can_snap, can_find = _sitewide_coverage_finding("canonical_coverage", "Canonical Coverage", len(canonical_pages), total_pages, "Technical", "Weak canonical coverage", "Add canonicals", [])
+    
+    indexable_pages = [page for page in pages if page.get("is_indexable", True)]
+    idx_score, idx_snap, idx_find = _sitewide_coverage_finding("indexability_coverage", "Indexability", len(indexable_pages), total_pages, "Technical", "Unexpected noindex", "Review noindex pages", [])
+    
+    indexation_module_score = round((can_score + idx_score) / 2, 1)
+    findings.extend([can_find, idx_find])
+    metric_summary.extend([can_snap, idx_snap])
 
-    broken_link_summary = crawl_data.get("broken_link_summary", {})
-    broken_ratio = float(broken_link_summary.get("broken_ratio", 0.0))
-    broken_score = maximum_attainment(
-        broken_ratio,
-        SITEWIDE_BENCHMARKS["broken_internal_link_ratio"]["max"],
-    )
-    broken_current_value = (
-        f"{format_percentage(broken_ratio)} broken internal links across checked samples "
-        f"({broken_link_summary.get('broken_count', 0)}/{broken_link_summary.get('checked_count', 0)})."
-    )
-    broken_finding = _finding(
-        category="Link Integrity",
-        metric="Broken Internal Link Ratio",
-        current_value=broken_current_value,
-        benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['broken_internal_link_ratio']['label']}.",
-        score=broken_score,
-        business_impact=(
-            "Broken internal links interrupt journeys to key pages, waste crawl budget, and signal weak operational hygiene to both users and search engines."
-        ),
-        recommendation=(
-            "Repair or redirect broken internal targets found in the sampled crawl and add QA checks before publishing."
-        ),
-        priority=priority_from_score(broken_score, hard_fail=broken_ratio > 5),
-        evidence=[
-            {
-                "url": item.get("source_url", ""),
-                "observation": (
-                    f"Links to {item.get('target_url', '')} returned status {item.get('status_code', 0)}."
-                ),
-            }
-            for item in broken_link_summary.get("broken_links", [])[:3]
-        ],
-    )
-    score_map["broken_internal_link_ratio"] = broken_score
-    metric_summary.append(
-        _snapshot(
-            metric="Broken Internal Link Ratio",
-            current_value=broken_current_value,
-            benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['broken_internal_link_ratio']['label']}.",
-            score=broken_score,
-        )
-    )
-    findings.append(broken_finding)
-
-    unique_title_count, duplicate_title_pages = _duplicate_coverage(pages, "title")
-    unique_title_percentage = _percentage_count(unique_title_count, total_pages)
-    unique_title_score = minimum_attainment(
-        unique_title_percentage,
-        SITEWIDE_BENCHMARKS["unique_title_coverage"]["min"],
-    )
-    unique_title_current_value = (
-        f"{format_percentage(unique_title_percentage)} unique titles across sampled pages."
-    )
-    unique_title_finding = _finding(
-        category="Metadata",
-        metric="Title Uniqueness",
-        current_value=unique_title_current_value,
-        benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['unique_title_coverage']['label']}.",
-        score=unique_title_score,
-        business_impact=(
-            "Duplicate titles make pages compete for the same query meaning and reduce the site's ability to match distinct search intents with distinct landing experiences."
-        ),
-        recommendation=(
-            "Rewrite duplicate titles so each sampled page owns a distinct topic and click-through proposition."
-        ),
-        priority=priority_from_score(unique_title_score, hard_fail=unique_title_percentage < 80),
-        evidence=_collect_page_evidence(
-            duplicate_title_pages,
-            lambda _page: True,
-            lambda page: f"Duplicate title detected: {page.get('title', '')}.",
-        ),
-    )
-    score_map["unique_title_coverage"] = unique_title_score
-    metric_summary.append(
-        _snapshot(
-            metric="Title Uniqueness",
-            current_value=unique_title_current_value,
-            benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['unique_title_coverage']['label']}.",
-            score=unique_title_score,
-        )
-    )
-    findings.append(unique_title_finding)
-
-    unique_meta_count, duplicate_meta_pages = _duplicate_coverage(pages, "description")
-    unique_meta_percentage = _percentage_count(unique_meta_count, total_pages)
-    unique_meta_score = minimum_attainment(
-        unique_meta_percentage,
-        SITEWIDE_BENCHMARKS["unique_meta_coverage"]["min"],
-    )
-    unique_meta_current_value = (
-        f"{format_percentage(unique_meta_percentage)} unique meta descriptions across sampled pages."
-    )
-    unique_meta_finding = _finding(
-        category="Metadata",
-        metric="Meta Description Uniqueness",
-        current_value=unique_meta_current_value,
-        benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['unique_meta_coverage']['label']}.",
-        score=unique_meta_score,
-        business_impact=(
-            "Duplicate descriptions weaken differentiation between pages and reduce the chance of matching pre-click messaging to the user's exact need."
-        ),
-        recommendation=(
-            "Replace duplicate descriptions with intent-specific copy for each sampled page."
-        ),
-        priority=priority_from_score(unique_meta_score, hard_fail=unique_meta_percentage < 80),
-        evidence=_collect_page_evidence(
-            duplicate_meta_pages,
-            lambda _page: True,
-            lambda page: (
-                f"Duplicate description detected at {page.get('meta_description_length', 0)} characters."
-            ),
-        ),
-    )
-    score_map["unique_meta_coverage"] = unique_meta_score
-    metric_summary.append(
-        _snapshot(
-            metric="Meta Description Uniqueness",
-            current_value=unique_meta_current_value,
-            benchmark=f"2026 standard: {SITEWIDE_BENCHMARKS['unique_meta_coverage']['label']}.",
-            score=unique_meta_score,
-        )
-    )
-    findings.append(unique_meta_finding)
-
-    robots_exists = bool(crawl_data.get("robots", {}).get("exists"))
-    robots_score = 100.0 if robots_exists else 0.0
-    findings.append(
-        _finding(
-            category="Crawl Governance",
-            metric="Robots.txt Presence",
-            current_value="Robots.txt found." if robots_exists else "Robots.txt not found.",
-            benchmark="2026 standard: Robots.txt should be accessible and actively maintained.",
-            score=robots_score,
-            business_impact=(
-                "Missing robots.txt removes a simple layer of crawl governance and can make large-site control more fragile as the site grows."
-            ),
-            recommendation=(
-                "Publish and maintain a robots.txt file with clear crawler directives and sitemap references."
-            ),
-            priority="Low" if robots_exists else "Medium",
-            evidence=_build_evidence(
-                crawl_data.get("robots", {}).get("url", ""),
-                f"Robots.txt returned status {crawl_data.get('robots', {}).get('status_code', 0)}.",
-            ),
-        )
-    )
-
-    sitemap_exists = bool(crawl_data.get("sitemap", {}).get("exists")) or bool(
-        crawl_data.get("declared_sitemaps", [])
-    )
-    sitemap_score = 100.0 if sitemap_exists else 0.0
-    findings.append(
-        _finding(
-            category="Crawl Governance",
-            metric="XML Sitemap Presence",
-            current_value="Sitemap discovered." if sitemap_exists else "No sitemap discovered.",
-            benchmark="2026 standard: XML sitemap available and referenced for indexable pages.",
-            score=sitemap_score,
-            business_impact=(
-                "Without a visible sitemap, search engines can take longer to discover new or updated commercial pages, slowing indexation and visibility gains."
-            ),
-            recommendation=(
-                "Publish an XML sitemap and reference it in robots.txt so discovery stays efficient as the site expands."
-            ),
-            priority="Low" if sitemap_exists else "Medium",
-            evidence=_build_evidence(
-                crawl_data.get("sitemap", {}).get("url", ""),
-                f"Sitemap endpoint returned status {crawl_data.get('sitemap', {}).get('status_code', 0)}.",
-            ),
-        )
-    )
+    # Performance
+    perf_score = 100.0
     if page_speed_data:
-        speed_score, speed_snapshot, speed_finding = _build_page_speed_finding(page_speed_data)
-        score_map["page_speed"] = speed_score
-        metric_summary.insert(0, speed_snapshot)
-        findings.append(speed_finding)
+        perf_score, ps_snap, ps_find = _build_page_speed_finding(page_speed_data)
+        metric_summary.append(ps_snap)
+        findings.append(ps_find)
 
-    bad_url_pages = [page for page in pages if page.get("url_structure", {}).get("score", 100) < 70]
-    if bad_url_pages:
-        findings.append(
-            _finding(
-                category="Information Architecture",
-                metric="URL Structure Optimization",
-                current_value=f"{len(bad_url_pages)} sampled pages utilize poorly structured or disjointed URLs.",
-                benchmark="2026 standard: URL baseline scores passing >= 70 threshold.",
-                score=0.0,
-                business_impact="Disorganized explicit URL targeting limits engine string parsing efficiency, disrupts UX readability mapping, and raises spam flagging heuristics.",
-                recommendation="Use short, readable URLs strictly relying on logical lowercase paths divided safely by hyphens.",
-                priority="High",
-                evidence=_collect_page_evidence(bad_url_pages, lambda _: True, lambda p: p.get("url", ""))
-            )
-        )
+    # Links & Integrity
+    broken_summary = crawl_data.get("broken_link_summary", {})
+    broken_ratio = float(broken_summary.get("broken_ratio", 0.0))
+    broken_score = maximum_attainment(broken_ratio, SITEWIDE_BENCHMARKS["broken_internal_link_ratio"]["max"])
+    
+    integrity_module_score = broken_score # Simplified for now
 
-    overall_score = weighted_score(score_map, SITEWIDE_AUDIT_WEIGHTS)
+    # Final Sitewide Score Map
+    final_score_map = {
+        "metadata": metadata_module_score,
+        "content": content_module_score,
+        "indexation": indexation_module_score,
+        "serp": 100.0, # Placeholder
+        "integrity": integrity_module_score
+    }
+    
+    overall_score = weighted_score(final_score_map, SITEWIDE_AUDIT_WEIGHTS)
 
     page_summaries = [
         _build_page_summary(page, page_audit)
@@ -1361,46 +1078,9 @@ def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict], page_spe
         "findings": sort_by_priority(findings),
         "page_summaries": page_summaries,
         "category_scores": {
-            "metadata": format_percentage(
-                weighted_score(
-                    {
-                        "title_coverage": score_map["title_coverage"],
-                        "meta_description_coverage": score_map["meta_description_coverage"],
-                        "unique_title_coverage": score_map["unique_title_coverage"],
-                        "unique_meta_coverage": score_map["unique_meta_coverage"],
-                    },
-                    {
-                        "title_coverage": 4,
-                        "meta_description_coverage": 4,
-                        "unique_title_coverage": 1,
-                        "unique_meta_coverage": 1,
-                    },
-                )
-            ),
-            "content_depth": format_percentage(score_map["substantive_content_coverage"]),
-            "indexation_governance": format_percentage(
-                weighted_score(
-                    {
-                        "canonical_coverage": score_map["canonical_coverage"],
-                        "indexability_coverage": score_map["indexability_coverage"],
-                    },
-                    {
-                        "canonical_coverage": 1,
-                        "indexability_coverage": 1,
-                    },
-                )
-            ),
-            "serp_enhancements": format_percentage(
-                weighted_score(
-                    {
-                        "structured_data_coverage": score_map["structured_data_coverage"],
-                        "social_metadata_coverage": score_map["social_metadata_coverage"],
-                    },
-                    {
-                        "structured_data_coverage": 1,
-                        "social_metadata_coverage": 1,
-                    },
-                )
-            ),
+            "metadata": format_percentage(metadata_module_score),
+            "content": format_percentage(content_module_score),
+            "indexation": format_percentage(indexation_module_score),
+            "integrity": format_percentage(integrity_module_score),
         },
     }

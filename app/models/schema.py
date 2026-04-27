@@ -7,10 +7,15 @@ from pydantic import BaseModel, Field
 
 class URLRequest(BaseModel):
     url: str
+    business_type: Optional[str] = "General"
 
 
 class FixRequest(BaseModel):
-    issue: str
+    issue: str = Field(..., alias="finding", validation_alias="finding")
+
+    model_config = {
+        "populate_by_name": True
+    }
 
 
 class FixResponse(BaseModel):
@@ -42,6 +47,14 @@ class TechnicalFinding(BaseModel):
     recommendation: str
     priority: Literal["High", "Medium", "Low"]
     evidence: List[EvidencePoint] = Field(default_factory=list)
+    score: float = 100.0
+
+
+class ScoreBreakdownItem(BaseModel):
+    module: str
+    score: float
+    impact: str
+    reason: str
 
 
 class MarketOpportunity(BaseModel):
@@ -94,6 +107,7 @@ class TechnicalAudit(BaseModel):
     overall_seo_health: str
     metric_summary: List[MetricSnapshot]
     findings: List[TechnicalFinding]
+    score_breakdown: List[ScoreBreakdownItem] = Field(default_factory=list)
 
 
 class ManagementSummary(BaseModel):
@@ -217,9 +231,9 @@ class ExternalLinkReport(BaseModel):
 
 
 class BacklinkReport(BaseModel):
-    backlink_strength: str
-    estimated_backlinks: int
-    referring_domains: int
+    backlink_strength: Optional[str] = "Unknown"
+    estimated_backlinks: Optional[int] = 0
+    referring_domains: Optional[int] = 0
 
 
 class LinkAnalysis(BaseModel):

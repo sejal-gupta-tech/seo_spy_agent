@@ -39,16 +39,18 @@ def range_attainment(actual: int, minimum: int, maximum: int) -> float:
 
 def status_from_score(score: float) -> str:
     if score >= 90:
+        return "Good"
+    if score >= 80:
         return "At Benchmark"
-    if score >= 70:
-        return "Below Benchmark"
+    if score >= 50:
+        return "Needs Improvement"
     return "Critical Gap"
 
 
 def priority_from_score(score: float, hard_fail: bool = False) -> str:
-    if hard_fail or score < 60:
+    if hard_fail or score < 40:
         return "High"
-    if score < 90:
+    if score < 80:
         return "Medium"
     return "Low"
 

@@ -188,10 +188,23 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     if canonical_tag and canonical_tag.get("href"):
         canonical_href = normalize_crawl_url(urljoin(final_url, canonical_tag["href"]))
 
-    favicon_tag = soup.find("link", rel=lambda value: value and "icon" in str(value).lower())
+    # Only standard favicon link tags count as a favicon.
+    # apple-touch-icon, mask-icon, etc. are NOT favicons and must be excluded.
+    _FAVICON_REL_VALUES = {"icon", "shortcut icon"}
+
+    def _is_favicon_rel(value) -> bool:
+        if not value:
+            return False
+        # rel attribute can be a list (BeautifulSoup) or a string
+        rels = value if isinstance(value, list) else str(value).split()
+        return any(r.lower().strip() in _FAVICON_REL_VALUES for r in rels)
+
+    favicon_tag = soup.find("link", rel=_is_favicon_rel)
     favicon_href = ""
     if favicon_tag and favicon_tag.get("href"):
-        favicon_href = normalize_crawl_url(urljoin(final_url, favicon_tag["href"]))
+        raw_href = favicon_tag["href"].strip()
+        if raw_href and not raw_href.startswith("data:"):
+            favicon_href = normalize_crawl_url(urljoin(final_url, raw_href))
 
     images = soup.find_all("img")
     missing_alt_images = [
@@ -287,6 +300,7 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
 
 
 async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str) -> dict:
+    """Generic HEAD/GET checker for robots.txt, sitemap.xml, etc."""
     try:
         response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
         return {
@@ -294,7 +308,7 @@ async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str)
             "status_code": response.status_code,
             "exists": response.status_code == 200,
             "body": response.text if response.status_code == 200 else "",
-            "status_string": f"Found (/{response.status_code})" if response.status_code == 200 else "Missing"
+            "status_string": f"Found ({response.status_code})" if response.status_code == 200 else "Missing"
         }
     except Exception as exc:
         return {
@@ -303,6 +317,54 @@ async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str)
             "exists": False,
             "body": "",
             "status_string": "Missing",
+            "error": str(exc),
+        }
+
+
+async def _fetch_favicon(client: httpx.AsyncClient, target_url: str) -> dict:
+    """
+    Fetches /favicon.ico and validates it is actually an image.
+    Many servers return HTTP 200 with an HTML error page at /favicon.ico when
+    no favicon exists — content-type validation catches these false positives.
+    """
+    _IMAGE_TYPES = {
+        "image/x-icon", "image/vnd.microsoft.icon", "image/png",
+        "image/jpeg", "image/gif", "image/svg+xml", "image/webp",
+    }
+    try:
+        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
+        content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
+        status_code = response.status_code
+
+        # A 200 with an HTML body is NOT a valid favicon (CDN / server error page)
+        is_image = any(ct in content_type for ct in ("image/",))
+        is_html = "text/html" in content_type or (
+            response.text.lstrip()[:15].lower().startswith(("<!doctype", "<html"))
+        )
+
+        exists = status_code == 200 and is_image and not is_html
+        status_string = (
+            f"Found ({status_code} · {content_type})" if exists
+            else "Missing" if status_code != 200
+            else f"Invalid (HTTP 200 but content-type is '{content_type}', not an image)"
+        )
+
+        return {
+            "url": str(response.url),
+            "status_code": status_code,
+            "exists": exists,
+            "content_type": content_type,
+            "status_string": status_string,
+            "body": "",
+        }
+    except Exception as exc:
+        return {
+            "url": target_url,
+            "status_code": 0,
+            "exists": False,
+            "content_type": "",
+            "status_string": "Missing",
+            "body": "",
             "error": str(exc),
         }
 
@@ -465,7 +527,11 @@ async def crawl_site(
 ) -> dict:
     normalized_start_url = normalize_crawl_url(start_url)
     base_domain = urlparse(normalized_start_url).netloc
-    effective_max_pages = max_pages or CRAWL_MAX_PAGES
+
+    # 0 means "no limit" — crawl every discovered page
+    _configured_max = max_pages if max_pages is not None else CRAWL_MAX_PAGES
+    effective_max_pages = _configured_max if _configured_max > 0 else float("inf")
+    display_max_pages = _configured_max if _configured_max > 0 else 9999  # for UI only
 
     await emit_progress(
         progress_callback,
@@ -473,7 +539,7 @@ async def crawl_site(
             "type": "crawl_seed",
             "url": normalized_start_url,
             "depth": 0,
-            "max_pages": effective_max_pages,
+            "max_pages": display_max_pages,
             "max_depth": CRAWL_MAX_DEPTH,
         },
     )
@@ -490,7 +556,7 @@ async def crawl_site(
             _fetch_sitemap_xml(client, urljoin(normalized_start_url, "/sitemap.xml"))
         )
         favicon_task = asyncio.create_task(
-            _fetch_supporting_resource(client, urljoin(normalized_start_url, "/favicon.ico"))
+            _fetch_favicon(client, urljoin(normalized_start_url, "/favicon.ico"))
         )
 
         queue = deque([(normalized_start_url, 0)])
@@ -602,7 +668,7 @@ async def crawl_site(
                     depth < CRAWL_MAX_DEPTH
                     and link not in visited_urls
                     and link not in queued_urls
-                    and len(visited_urls) < effective_max_pages
+                    and (effective_max_pages == float("inf") or len(visited_urls) < effective_max_pages)
                 ):
                     queue.append((link, depth + 1))
                     queued_urls.add(link)
@@ -665,9 +731,11 @@ async def crawl_site(
 
     declared_sitemaps = []
     for line in robots_data.get("body", "").splitlines():
-        if line.lower().startswith("sitemap:"):
-            sitemap_url = line.split(":", 1)[1].strip()
-            if sitemap_url:
+        stripped = line.strip()
+        if stripped.lower().startswith("sitemap:"):
+            # Safely extract the URL after the "Sitemap:" prefix (case-insensitive)
+            sitemap_url = stripped[len("sitemap:"):].strip()
+            if sitemap_url and sitemap_url.startswith("http"):
                 declared_sitemaps.append(sitemap_url)
 
     primary_page = pages[0] if pages else {}

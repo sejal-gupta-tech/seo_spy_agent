@@ -32,6 +32,19 @@ def _read_float(name: str, default: float) -> float:
         return default
 
 
+# ---------------------------------------------------------------------------
+# Security / CORS
+# These are read directly in main.py and routes.py from os.getenv, but
+# defining them here gives a single source of truth for documentation.
+# ---------------------------------------------------------------------------
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+ALLOWED_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+API_KEY: str = os.getenv("SEO_SPY_API_KEY", "").strip()
+
+# MongoDB settings
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "seo_spy_agent")
+
 SEO_BENCHMARK_YEAR = 2026
 
 DEFAULT_COMPANY_NAME = "This Website"
@@ -49,8 +62,10 @@ DEFAULT_MARKET_FOCUS_KEYWORDS = [
     "customer demand",
 ]
 
-CRAWL_MAX_PAGES = _read_int("SEO_SPY_CRAWL_MAX_PAGES", 25)
-CRAWL_MAX_DEPTH = 3
+# Set SEO_SPY_CRAWL_MAX_PAGES=0 to crawl ALL discovered pages (no limit).
+# Default is 500 which is high enough to cover most sites fully.
+CRAWL_MAX_PAGES = _read_int("SEO_SPY_CRAWL_MAX_PAGES", 500)
+CRAWL_MAX_DEPTH = _read_int("SEO_SPY_CRAWL_MAX_DEPTH", 5)
 BROKEN_LINK_CHECK_LIMIT = _read_int("SEO_SPY_BROKEN_LINK_CHECK_LIMIT", 20)
 HTTP_TIMEOUT_SECONDS = _read_float("SEO_SPY_HTTP_TIMEOUT_SECONDS", 8.0)
 COMPETITOR_FETCH_TIMEOUT_SECONDS = _read_float(
@@ -93,14 +108,14 @@ SEO_BENCHMARKS = {
     },
 }
 
+# New Production-Ready Weights (must sum to 100)
 AUDIT_WEIGHTS = {
-    "title": 20,
-    "meta_description": 15,
-    "heading_structure": 15,
-    "mobile_first": 15,
-    "image_accessibility": 10,
-    "linking_strategy": 15,
-    "canonical_tag": 10,
+    "metadata": 20,
+    "headings": 20,
+    "technical": 20,
+    "performance": 15,
+    "links": 15,
+    "accessibility": 10,
 }
 
 SITEWIDE_BENCHMARKS = {
@@ -155,18 +170,11 @@ SITEWIDE_BENCHMARKS = {
 }
 
 SITEWIDE_AUDIT_WEIGHTS = {
-    "title_coverage": 12,
-    "meta_description_coverage": 12,
-    "h1_compliance": 10,
-    "canonical_coverage": 8,
-    "indexability_coverage": 10,
-    "structured_data_coverage": 8,
-    "social_metadata_coverage": 8,
-    "substantive_content_coverage": 10,
-    "alt_text_coverage": 10,
-    "broken_internal_link_ratio": 6,
-    "unique_title_coverage": 3,
-    "unique_meta_coverage": 3,
+    "metadata": 30,
+    "content": 20,
+    "indexation": 20,
+    "serp": 15,
+    "integrity": 15
 }
 
 PRIORITY_ORDER = {

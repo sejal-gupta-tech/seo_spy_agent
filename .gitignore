@@ -68,3 +68,4 @@ chroma/
 
 # Generated reports
 reports/*.pdf
+reports/*.html
