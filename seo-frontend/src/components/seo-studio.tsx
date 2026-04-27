@@ -69,7 +69,8 @@ const SectionHeader = ({ icon: Icon, title, subtitle }: { icon: any, title: stri
 );
 
 const MetricCard = ({ label, value, benchmark, status, description }: any) => {
-  const isCritical = status?.toLowerCase().includes('critical') || status?.toLowerCase().includes('below');
+  const statusLower = status?.toLowerCase() || '';
+  const isCritical = statusLower.includes('critical') || statusLower.includes('below');
   return (
     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
       <div className="flex justify-between items-start mb-3">
@@ -78,7 +79,7 @@ const MetricCard = ({ label, value, benchmark, status, description }: any) => {
           {description && <HelpTooltip text={description} />}
         </div>
         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${isCritical ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-          {status}
+          {status || 'N/A'}
         </span>
       </div>
       <div className="text-2xl font-display font-bold text-slate-800 mb-1">{value}</div>
@@ -148,7 +149,7 @@ const RoadmapItem = ({ item, index, total }: any) => {
             >
               <div className="space-y-6 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {item.actions.map((a: any, i: any) => (
+                  {item?.actions?.map((a: any, i: any) => (
                     <motion.div 
                       key={i}
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -159,7 +160,7 @@ const RoadmapItem = ({ item, index, total }: any) => {
                       <Check className="w-3 h-3 text-emerald-400 mt-0.5 flex-shrink-0" />
                       <span className="text-[11px] font-bold text-slate-100 leading-tight">{a}</span>
                     </motion.div>
-                  ))}
+                  )) || null}
                 </div>
                 
                 <motion.div 
@@ -1155,6 +1156,12 @@ export default function SEOStudio() {
   const [copied, setCopied] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (auditResult) {
+      console.log('Audit Intelligence - Data Payload Received:', auditResult);
+    }
+  }, [auditResult]);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   // Dynamic Audit State
@@ -1251,7 +1258,7 @@ export default function SEOStudio() {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`SEO_Audit_Report_${currentData.pdf_template_data.company_name}.pdf`);
+      pdf.save(`SEO_Audit_Report_${currentData?.pdf_template_data?.company_name || 'Organization'}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF. Please try again.');
@@ -1511,7 +1518,7 @@ export default function SEOStudio() {
               </motion.div>
             </div>
           </div>
-        ) : (
+        ) : (currentData ? (
           <>
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-6 h-16 flex items-center justify-between">
@@ -1676,7 +1683,7 @@ export default function SEOStudio() {
                       <AlertCircle className="w-3.5 h-3.5" /> Status: {currentData.management_summary.board_verdict}
                     </div>
                     <h1 className="text-5xl md:text-6xl font-display font-bold text-slate-900 mb-8 leading-[1.05]">
-                      {currentData.pdf_template_data.company_name} Management <br />
+                      {currentData?.pdf_template_data?.company_name || 'Organization'} Management <br />
                       <span className="text-indigo-600">SEO Audit Report</span>
                     </h1>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-slate-100 pt-8 mt-4">
@@ -2186,8 +2193,9 @@ export default function SEOStudio() {
                           cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
                           content={({ active, payload }) => {
                             if (active && payload && payload.length) {
-                              const data = payload[0].payload;
-                              const isPositive = data.name === 'Speed Score' ? data.value >= data.goal : data.value <= data.goal;
+                              const data = payload[0]?.payload;
+                              if (!data) return null;
+                              const isPositive = data.name === 'Speed Score' ? (data.value >= (data.goal || 0)) : (data.value <= (data.goal || 999));
                               
                               return (
                                 <motion.div 
@@ -2340,7 +2348,7 @@ export default function SEOStudio() {
                                 <span className="text-[10px] font-bold text-rose-600 capitalize">{p.key_issue}</span>
                               </div>
                             </td>
-                            <td className="p-6 text-center text-[10px] font-bold text-slate-400">{p.word_count.toLocaleString()}</td>
+                            <td className="p-6 text-center text-[10px] font-bold text-slate-400">{(p?.word_count || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2398,11 +2406,18 @@ export default function SEOStudio() {
           <footer className="mt-40 border-t border-slate-200 py-20 px-6">
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
               <div className="flex items-center gap-2"><ShieldCheck className="w-8 h-8 text-indigo-600" /><span className="font-display font-bold text-2xl">AuditIntelligence</span></div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center md:text-right">Generated for {currentData.pdf_template_data.company_name} • Management Protocol v3.2 • &copy; 2026 Audit Intel</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center md:text-right">Generated for {currentData?.pdf_template_data?.company_name || 'Organization'} • Management Protocol v3.2 • &copy; 2026 Audit Intel</div>
             </div>
           </footer>
         </>
-        )}
+        ) : (
+          <div className="min-h-screen flex items-center justify-center bg-slate-50 w-full">
+             <div className="flex flex-col items-center gap-4">
+                <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
+                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Synchronizing Audit Data...</p>
+             </div>
+          </div>
+        ))}
       </div>
     </div>
   );
