@@ -47,7 +47,8 @@ import {
   MousePointer2,
   Link,
   PanelLeftOpen,
-  PanelLeftClose
+  PanelLeftClose,
+  Target
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
