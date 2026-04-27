@@ -50,9 +50,7 @@ import {
   PanelLeftClose,
   Target,
   Layers,
-  BarChart3,
-  Mail,
-  PieChart
+  BarChart3
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -199,6 +197,7 @@ const extractValue = (val: string) => {
 };
 
 const MetricComparisonTool = ({ metrics }: { metrics: any[] }) => {
+  if (!metrics || metrics.length === 0) return null;
   const [metric1, setMetric1] = useState(metrics[0]?.metric);
   const [metric2, setMetric2] = useState(metrics[4]?.metric || metrics[1]?.metric);
 
@@ -351,7 +350,7 @@ const MetricComparisonTool = ({ metrics }: { metrics: any[] }) => {
   );
 };
 
-const URLComparisonDetails = ({ original, optimized, reason }: { original: string, optimized: string, reason: string }) => {
+const URLComparisonDetails = ({ original, optimized, reason, targetUrl }: { original: string, optimized: string, reason: string, targetUrl: string }) => {
   const [hoveredTip, setHoveredTip] = useState<string | null>(null);
 
   const tips: Record<string, string> = {
@@ -420,7 +419,7 @@ const URLComparisonDetails = ({ original, optimized, reason }: { original: strin
             {optimized}
           </div>
           <a 
-            href={`https://dzinly.com${optimized}`}
+            href={`${targetUrl.replace(/\/$/, '')}${optimized}`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-3 bg-emerald-500/20 hover:bg-emerald-500/40 rounded-xl border border-emerald-500/30 transition-all flex-shrink-0 group/link"
@@ -488,7 +487,7 @@ const URLComparisonDetails = ({ original, optimized, reason }: { original: strin
   );
 };
 
-const URLGraph = ({ urls }: { urls: any[] }) => {
+const URLGraph = ({ urls, companyName, targetUrl }: { urls: any[], companyName: string, targetUrl: string }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<any>(null);
 
@@ -501,11 +500,11 @@ const URLGraph = ({ urls }: { urls: any[] }) => {
     svg.selectAll("*").remove();
 
     const nodes = [
-      { id: 'DZINLY', type: 'root', depth: 0 },
+      { id: companyName, type: 'root', depth: 0 },
       ...urls.map((u, i) => ({ id: u.optimized, type: 'url', full: u, depth: 1 }))
     ];
 
-    const links = urls.map(u => ({ source: 'DZINLY', target: u.optimized }));
+    const links = urls.map(u => ({ source: companyName, target: u.optimized }));
 
     const simulation = d3.forceSimulation(nodes as any)
       .force("link", d3.forceLink(links).id((d: any) => d.id).distance(120))
@@ -554,7 +553,7 @@ const URLGraph = ({ urls }: { urls: any[] }) => {
       .attr("class", "hover:stroke-indigo-300 transition-all");
 
     node.append("text")
-      .text((d: any) => d.id === 'DZINLY' ? d.id : d.id.split('/').pop())
+      .text((d: any) => d.id === companyName ? d.id : d.id.split('/').pop())
       .attr("dy", (d: any) => d.type === 'root' ? 35 : 25)
       .attr("text-anchor", "middle")
       .attr("fill", "#ffffff")
@@ -623,7 +622,7 @@ const URLGraph = ({ urls }: { urls: any[] }) => {
 
               <div className="pt-4 border-t border-white/5">
                 <a 
-                  href={`https://dzinly.com${selectedNode.optimized}`}
+                  href={`${targetUrl.replace(/\/$/, '')}${selectedNode.optimized}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all"
@@ -929,7 +928,7 @@ const DataLimitationAccordionItem = ({ lim, index }: any) => {
   );
 };
 
-const FindingAccordionItem = ({ finding }: any) => {
+const FindingAccordionItem = ({ finding, currentData }: any) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const renderRemediationTool = () => {
@@ -944,10 +943,10 @@ const FindingAccordionItem = ({ finding }: any) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
-              { page: 'Homepage', current: 'Expert Online Exterior Design Services...', optimized: 'Transform your home exterior with DZINLY Expert Online Design. Visualize colors & materials in 3D. Start your renovation journey with professional renders today.' },
-              { page: 'Contact', current: 'Contact Us | DZINLY', optimized: 'Ready for a home transformation? Contact DZINLY for custom exterior designs. Our experts help you visualize your dream home before construction begins. Inquire now.' },
-              { page: 'Blog Hub', current: 'Blogs | DZINLY', optimized: 'Elevate your curb appeal with DZINLY Exterior Design Blog. Expert tips, 2026 trends, and professional renovation strategies to modernize your home exterior.' },
-              { page: 'How It Works', current: 'Simple and Affordable Virtual Exterior Design', optimized: 'Experience effortless virtual remodeling with DZINLY. Upload a photo, choose materials, and get photorealistic renders from top designers. Simple, fast, affordable.' }
+              { page: 'Homepage', current: currentData?.pdf_template_data?.hero_metrics?.[0]?.value || 'Legacy Content', optimized: `Expert ${currentData?.pdf_template_data?.company_name || 'Organization'} Services | Strategic Search Engine Visibility & Growth` },
+              { page: 'Internal', current: 'Legacy System Metadata', optimized: `Professional ${currentData?.keyword_analysis?.primary_keywords?.[0] || 'Technical'} Solutions - Optimized by ${currentData?.pdf_template_data?.company_name || 'AuditIntelligence'}` },
+              { page: 'Services', current: 'Service Index', optimized: `Premium Service Catalog | ${currentData?.pdf_template_data?.company_name || 'Organization'} Industry-Leading Protocols` },
+              { page: 'Insights', current: 'Unoptimized Insights', optimized: `${currentData?.pdf_template_data?.company_name || 'Organization'} Strategic Hub | Expert Research & Market Data` }
             ].map((item, i) => (
               <div key={i} className="p-4 bg-white border border-slate-200 rounded-2xl group hover:border-indigo-400 transition-all shadow-sm">
                 <div className="text-[9px] font-black text-indigo-600 uppercase mb-2">{item.page} Optimization</div>
@@ -976,7 +975,7 @@ const FindingAccordionItem = ({ finding }: any) => {
           <div className="space-y-3">
              {[
                { img: 'hero-render-01.jpg', tag: '3D Render of modern home exterior with charcoal siding and natural wood accents', confidence: '98%' },
-               { img: 'before-after-trans.png', tag: 'Side-by-side comparison of a traditional ranch home before and after DZINLY exterior transformation', confidence: '94%' },
+               { img: 'visual-analysis.png', tag: `Deep semantic audit of the primary ${currentData?.pdf_template_data?.company_name || 'target'} domain architecture and crawl frontiers.`, confidence: '94%' },
                { img: 'material-swatch-oak.webp', tag: 'Close-up texture of natural oak wood planking for exterior facade visualization', confidence: '99%' }
              ].map((asset, i) => (
                <div key={i} className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl flex items-center justify-between group">
@@ -1162,6 +1161,8 @@ export default function SEOStudio() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [auditResult, setAuditResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const dynamicFixes = useMemo(() => {
     if (!auditResult?.crawl_overview?.sampled_pages) return { titles: [], meta: [], urls: [] };
@@ -1173,10 +1174,10 @@ export default function SEOStudio() {
     // Title Optimization Fixes
     const titles = pages.slice(0, 10).map(p => ({
       url: p.url.replace(/^https?:\/\//, ''),
-      current: p.title,
-      suggestion: p.title.length < 15 
-        ? `${p.title} | ${company} - ${primaryKeyword}` 
-        : `${p.title.split('|')[0].trim()} | ${primaryKeyword} - ${company}`
+      current: p.title || 'Untitled Page',
+      suggestion: (p.title || 'Page').length < 15 
+        ? `${p.title || 'Expert Services'} | ${company} - ${primaryKeyword}` 
+        : `${(p.title || 'Page').split('|')[0].trim()} | ${primaryKeyword} - ${company}`
     }));
 
     // Meta Description Fixes
@@ -1204,6 +1205,42 @@ export default function SEOStudio() {
       console.log('Audit Intelligence - Data Payload Received:', auditResult);
     }
   }, [auditResult]);
+
+  const fetchProjects = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/projects`);
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch project history:', err);
+    }
+  };
+
+  const loadProject = async (projectId: string) => {
+    setIsAnalyzing(true);
+    setError(null);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/projects/${projectId}`);
+      if (!response.ok) throw new Error('Failed to load project details');
+      const data = await response.json();
+      setAuditResult(data);
+      setTargetUrl(data?.pdf_template_data?.website || '');
+      setActiveTab('summary');
+      setIsMobileSidebarOpen(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
   
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -1242,6 +1279,7 @@ export default function SEOStudio() {
       const result = await response.json();
       setAuditResult(result);
       setActiveTab('summary');
+      fetchProjects(); // Refresh project list after new audit
     } catch (err: any) {
       console.error('Audit failed:', err);
       setError(err.message);
@@ -1256,7 +1294,7 @@ export default function SEOStudio() {
     setError(null);
   };
 
-  const reportUrl = typeof window !== 'undefined' ? window.location.href : 'https://seo-audit.dzinly.com';
+  const reportUrl = typeof window !== 'undefined' ? window.location.href : targetUrl || 'https://audit.ai';
 
   const tabs = [
     { id: 'summary', label: 'Summary', icon: FileText },
@@ -1376,6 +1414,24 @@ export default function SEOStudio() {
               {!isSidebarCollapsed && <span className="text-sm truncate">{tab.label}</span>}
             </button>
           ))}
+
+          {!isSidebarCollapsed && projects.length > 0 && (
+            <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
+              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-3">Audit History</h4>
+              <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-2">
+                {projects.slice(0, 5).map((proj) => (
+                  <button
+                    key={proj.id}
+                    onClick={() => loadProject(proj.id)}
+                    className="w-full flex flex-col items-start px-3 py-2 rounded-lg hover:bg-white/5 transition-all group"
+                  >
+                    <span className="text-[11px] font-bold text-slate-300 truncate w-full group-hover:text-white transition-colors">{proj.url.replace(/^https?:\/\//, '')}</span>
+                    <span className="text-[9px] text-slate-500 font-medium">{new Date(proj.created_at).toLocaleDateString()}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-4 border-t border-white/5 space-y-2">
@@ -1459,6 +1515,27 @@ export default function SEOStudio() {
                   </button>
                 ))}
               </div>
+
+              {projects.length > 0 && (
+                <div className="px-6 py-4 border-t border-white/5 space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-slate-500">Audit History</h4>
+                  <div className="space-y-2">
+                    {projects.slice(0, 5).map((proj) => (
+                      <button
+                        key={proj.id}
+                        onClick={() => loadProject(proj.id)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/5"
+                      >
+                        <div className="flex flex-col items-start">
+                          <span className="text-xs font-bold text-white truncate max-w-[180px]">{proj.url.replace(/^https?:\/\//, '')}</span>
+                          <span className="text-[10px] text-slate-500 font-medium">{new Date(proj.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-slate-500" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="p-4 border-t border-white/5 space-y-2">
                 <button 
                   onClick={() => setIsShareModalOpen(true)}
@@ -1544,6 +1621,40 @@ export default function SEOStudio() {
                     </motion.div>
                   )}
                 </div>
+
+                {projects.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="max-w-4xl mx-auto"
+                  >
+                    <div className="flex items-center justify-between mb-6 px-4">
+                      <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Load from History</h4>
+                      <div className="h-px bg-slate-200 flex-1 mx-8" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {projects.slice(0, 3).map((proj, idx) => (
+                        <button
+                          key={proj.id}
+                          onClick={() => loadProject(proj.id)}
+                          className="flex items-start gap-4 p-5 bg-white border border-slate-100 rounded-3xl hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/5 transition-all text-left group"
+                        >
+                          <div className="p-3 bg-slate-50 rounded-2xl group-hover:bg-indigo-50 transition-colors">
+                             <Globe className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-slate-800 truncate mb-1">{proj.url.replace(/^https?:\/\//, '')}</div>
+                            <div className="flex items-center gap-2">
+                               <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{proj.seo_score}% SEO</span>
+                               <span className="text-[10px] text-slate-400 font-medium">{new Date(proj.created_at).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
 
                 <div className="flex items-center justify-center gap-12 pt-12 border-t border-slate-200/60 opacity-50 grayscale hover:grayscale-0 transition-all duration-700">
                   <div className="flex items-center gap-2 font-display font-black text-slate-400 italic text-xl">Lighthouse+</div>
@@ -1687,7 +1798,7 @@ export default function SEOStudio() {
                       </div>
                       <input 
                         type="text" 
-                        placeholder="e.g. www.dzinly.com"
+                        placeholder="e.g. apple.com"
                         value={targetUrl}
                         onChange={(e) => setTargetUrl(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleStartAudit(targetUrl)}
@@ -1715,18 +1826,18 @@ export default function SEOStudio() {
                   <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-20 -mt-20 blur-3xl opacity-50 group-hover:bg-indigo-100 transition-colors" />
                   <div className="relative z-10">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest mb-6">
-                      <AlertCircle className="w-3.5 h-3.5" /> Status: {currentData.management_summary.board_verdict}
+                      <AlertCircle className="w-3.5 h-3.5" /> Status: {currentData?.management_summary?.board_verdict || 'N/A'}
                     </div>
                     <h1 className="text-5xl md:text-6xl font-display font-bold text-slate-900 mb-8 leading-[1.05]">
                       {currentData?.pdf_template_data?.company_name || 'Organization'} Management <br />
                       <span className="text-indigo-600">SEO Audit Report</span>
                     </h1>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-slate-100 pt-8 mt-4">
-                      {currentData.pdf_template_data.hero_metrics.map((m: any, idx: number) => (
+                      {(currentData?.pdf_template_data?.hero_metrics || []).map((m: any, idx: number) => (
                         <div key={idx} className="flex flex-col">
                           <div className="flex items-center">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.label}</span>
-                            <HelpTooltip text={m.description} suggestion={m.suggestion} />
+                            <HelpTooltip text={m.description || ''} suggestion={m.suggestion || ''} />
                           </div>
                           <span className="text-3xl font-display font-bold text-slate-800">{m.value}</span>
                         </div>
@@ -1778,14 +1889,14 @@ export default function SEOStudio() {
             <motion.div key="technical" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="space-y-12">
               <SectionHeader icon={Layers} title="Audit Benchmarks" subtitle="Comparison against current standards" />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {currentData.technical_audit.metric_summary.map((m: any, idx: number) => (
+                {(currentData?.technical_audit?.metric_summary || []).map((m: any, idx: number) => (
                   <MetricCard 
                     key={idx} 
                     label={m.metric} 
                     value={m.current_value} 
                     benchmark={m.benchmark} 
                     status={m.status} 
-                    description={m.description}
+                    description={m.description || ''}
                   />
                 ))}
               </div>
@@ -1796,8 +1907,8 @@ export default function SEOStudio() {
                 <div className="bg-white p-8 rounded-[2rem] border border-slate-200">
                   <SectionHeader icon={Activity} title="Strategic Findings" />
                   <div className="space-y-4">
-                    {currentData.technical_audit.findings.map((f: any, idx: number) => (
-                      <FindingAccordionItem key={idx} finding={f} />
+                    {(currentData?.technical_audit?.findings || []).map((f: any, idx: number) => (
+                      <FindingAccordionItem key={idx} finding={f} currentData={currentData} />
                     ))}
                   </div>
                 </div>
@@ -1805,12 +1916,12 @@ export default function SEOStudio() {
                   <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32" />
                   <SectionHeader icon={Clock} title="Deployment Roadmap" />
                   <div className="space-y-2 relative">
-                    {currentData.recommended_roadmap.map((r: any, idx: number) => (
+                    {(currentData?.recommended_roadmap || []).map((r: any, idx: number) => (
                       <RoadmapItem 
                         key={idx} 
                         item={r} 
                         index={idx} 
-                        total={currentData.recommended_roadmap.length} 
+                        total={currentData?.recommended_roadmap?.length || 0} 
                       />
                     ))}
                   </div>
@@ -1974,7 +2085,7 @@ export default function SEOStudio() {
                   <div className="space-y-12">
                     <URLAnalyzerTool />
                     
-                    <URLGraph urls={dynamicFixes.urls} />
+                    <URLGraph urls={dynamicFixes.urls} companyName={currentData?.pdf_template_data?.company_name || 'Root'} targetUrl={targetUrl} />
 
                     <div className="space-y-10">
                       {dynamicFixes.urls.map((fix: any, idx: number) => (
@@ -1987,6 +2098,7 @@ export default function SEOStudio() {
                              original={fix.original} 
                              optimized={fix.optimized} 
                              reason={fix.reason} 
+                             targetUrl={targetUrl}
                            />
                         </div>
                       ))}
@@ -2033,7 +2145,7 @@ export default function SEOStudio() {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    {currentData.competitive_intelligence.market_opportunities.map((opp: any, idx: number) => (
+                    {(currentData?.competitive_intelligence?.market_opportunities || []).map((opp: any, idx: number) => (
                       <div key={idx} className="p-5 bg-slate-50 border border-slate-100 rounded-2xl group hover:border-indigo-200 transition-all">
                         <div className="flex items-center justify-between mb-3">
                           <h5 className="font-bold text-slate-800">{opp.keyword}</h5>
@@ -2061,7 +2173,7 @@ export default function SEOStudio() {
                       </div>
                     </div>
                     <div className="space-y-8">
-                      {currentData.content_strategy.blog_suggestions.map((blog: any, idx: number) => (
+                      {(currentData?.content_strategy?.blog_suggestions || []).map((blog: any, idx: number) => (
                         <div key={idx} className="relative pl-6 border-l-2 border-slate-100 py-1">
                           <div className="absolute left-[-5px] top-2 w-2 h-2 rounded-full bg-emerald-500" />
                           <div className="flex justify-between items-center mb-2">
@@ -2069,7 +2181,7 @@ export default function SEOStudio() {
                           </div>
                           <h5 className="font-bold text-slate-900 text-sm mb-3">{blog.title}</h5>
                           <div className="flex flex-wrap gap-2">
-                            {blog.outline.map((o: any, i: any) => (
+                            {(blog.outline || []).map((o: any, i: any) => (
                               <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-medium text-slate-500 flex items-center gap-1">
                                 <ChevronRight className="w-2.5 h-2.5" /> {o}
                               </span>
@@ -2084,7 +2196,7 @@ export default function SEOStudio() {
                     <div className="relative z-10">
                       <h4 className="font-display font-bold text-xl mb-6">Target Keyword Analysis</h4>
                       <div className="flex flex-wrap gap-3">
-                        {currentData.keyword_analysis.primary_keywords.map((kw: string, idx: number) => (
+                        {(currentData?.keyword_analysis?.primary_keywords || []).map((kw: string, idx: number) => (
                           <span key={idx} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold transition-all cursor-default">
                             {kw}
                           </span>
@@ -2223,11 +2335,11 @@ export default function SEOStudio() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50 rounded-2xl">
                       <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Load Time</div>
-                      <div className="text-lg font-bold text-slate-800">{currentData.page_speed.response_time}s</div>
+                      <div className="text-lg font-bold text-slate-800">{currentData?.page_speed?.response_time || 0}s</div>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-2xl">
                       <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Page Size</div>
-                      <div className="text-lg font-bold text-slate-800">{currentData.page_speed.page_size_kb}KB</div>
+                      <div className="text-lg font-bold text-slate-800">{currentData?.page_speed?.page_size_kb || 0}KB</div>
                     </div>
                   </div>
                 </div>
@@ -2243,22 +2355,22 @@ export default function SEOStudio() {
                       <div className="space-y-4">
                         <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
                           <span className="text-sm font-bold text-slate-700 font-mono">Backlinks</span>
-                          <span className="px-3 py-1 bg-white rounded-lg font-black text-indigo-600 shadow-sm">~{currentData.link_analysis.backlinks.estimated_backlinks}</span>
+                          <span className="px-3 py-1 bg-white rounded-lg font-black text-indigo-600 shadow-sm">~{currentData?.link_analysis?.backlinks?.estimated_backlinks || 0}</span>
                         </div>
                         <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
                           <span className="text-sm font-bold text-slate-700 font-mono">Referring Domains</span>
-                          <span className="px-3 py-1 bg-white rounded-lg font-black text-indigo-600 shadow-sm">{currentData.link_analysis.backlinks.referring_domains}</span>
+                          <span className="px-3 py-1 bg-white rounded-lg font-black text-indigo-600 shadow-sm">{currentData?.link_analysis?.backlinks?.referring_domains || 0}</span>
                         </div>
                         <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
                           <span className="text-sm font-bold text-slate-700 font-mono">Link Strength</span>
-                          <span className="px-3 py-1 bg-emerald-500 text-white rounded-lg font-black text-[10px] shadow-sm uppercase">{currentData.link_analysis.backlinks.backlink_strength}</span>
+                          <span className="px-3 py-1 bg-emerald-500 text-white rounded-lg font-black text-[10px] shadow-sm uppercase">{currentData?.link_analysis?.backlinks?.backlink_strength || 'N/A'}</span>
                         </div>
                       </div>
                     </div>
                     <div>
                       <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Outbound Distribution</h5>
                       <div className="flex flex-wrap gap-2">
-                        {currentData.link_analysis.external.domains.map((domain: string, idx: number) => (
+                        {(currentData?.link_analysis?.external?.domains || []).map((domain: string, idx: number) => (
                           <span key={idx} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:border-indigo-600 hover:text-indigo-600 transition-all cursor-default">
                             {domain}
                           </span>
@@ -2267,7 +2379,7 @@ export default function SEOStudio() {
                       <div className="mt-8 pt-8 border-t border-slate-100">
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-bold text-slate-500">Total External Assets</span>
-                          <span className="font-black text-slate-900">{currentData.link_analysis.external.total_external_links}</span>
+                          <span className="font-black text-slate-900">{currentData?.link_analysis?.external?.total_external_links || 0}</span>
                         </div>
                       </div>
                     </div>
@@ -2293,7 +2405,7 @@ export default function SEOStudio() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {currentData.crawl_overview.sampled_pages.map((p: any, idx: number) => (
+                        {(currentData?.crawl_overview?.sampled_pages || []).map((p: any, idx: number) => (
                           <tr key={idx} className="hover:bg-indigo-50/20 transition-colors">
                             <td className="p-6 max-w-[300px]">
                               <div className="text-[10px] font-mono text-indigo-600 mb-1 truncate">{p.url}</div>
@@ -2325,7 +2437,7 @@ export default function SEOStudio() {
                        <h5 className="font-bold underline underline-offset-4 decoration-indigo-200">Crawl Constraints</h5>
                     </div>
                     <div className="divide-y divide-indigo-50">
-                       {currentData.data_limitations.map((lim: any, idx: number) => (
+                       {(currentData?.data_limitations || []).map((lim: any, idx: number) => (
                          <DataLimitationAccordionItem 
                            key={idx} 
                            lim={lim} 
@@ -2342,7 +2454,7 @@ export default function SEOStudio() {
                            <h5 className="text-2xl font-display font-bold">AI Derived Strategic Directives</h5>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
-                          {currentData.ai_insights.insights.map((ins: any, idx: number) => (
+                          {(currentData?.ai_insights?.insights || []).map((ins: any, idx: number) => (
                             <div key={idx} className="p-6 bg-white/5 rounded-[1.5rem] border border-white/10 flex flex-col group hover:bg-white/10 transition-all border-l-4 border-l-indigo-500">
                                <div className="flex justify-between items-center mb-4">
                                   <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{ins.issue}</span>
@@ -2354,7 +2466,7 @@ export default function SEOStudio() {
                                <div className="pt-4 border-t border-white/5">
                                   <div className="text-[9px] font-black text-slate-500 uppercase mb-2">Recommendation</div>
                                   <p className="text-[10px] font-bold text-indigo-300">{ins.recommendation}</p>
-                               </div>
+                                </div>
                             </div>
                           ))}
                         </div>

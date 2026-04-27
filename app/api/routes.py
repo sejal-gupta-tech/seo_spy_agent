@@ -21,7 +21,7 @@ from app.services.analysis_stream import stream_analysis
 from app.services.scraper import analyze_url
 from app.services.fix_generator import generate_fix
 from app.utils.validators import is_valid_url, normalize_url
-from app.services.db_service import save_audit_report
+from app.services.db_service import save_audit_report, get_all_projects, get_project_audit
 
 router = APIRouter()
 
@@ -167,3 +167,14 @@ def download_report(task_id: str = Depends(_validate_task_id)):
         return FileResponse(str(html_path), media_type="text/html", filename="seo_report.html")
 
     raise HTTPException(status_code=404, detail="Report not found.")
+@router.get("/projects", dependencies=[Depends(_require_api_key)])
+async def list_projects():
+    return await get_all_projects()
+
+
+@router.get("/projects/{project_id}", dependencies=[Depends(_require_api_key)])
+async def get_project(project_id: str):
+    result = await get_project_audit(project_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return result

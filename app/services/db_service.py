@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Dict
 from app.core.database import db_manager
 from app.core.logger import logger
+from bson import ObjectId
 
 async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]):
     """
@@ -95,5 +96,74 @@ async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]
 
     except Exception as e:
         logger.error(f"Error saving split audit data: {e}")
-        # In production, you might want to wrap this in a transaction if your MongoDB supports it
         raise e
+
+
+async def get_all_projects():
+    """
+    Returns a list of all analyzed projects.
+    """
+    db = db_manager.database
+    if db is None:
+        return []
+    
+    cursor = db.projects.find().sort("created_at", -1)
+    projects = []
+    async for doc in cursor:
+        doc["id"] = str(doc["_id"])
+        del doc["_id"]
+        projects.append(doc)
+    return projects
+
+async def get_project_audit(project_id_str: str) -> Dict[str, Any] | None:
+    """
+    Retrieves and aggregates all audit components for a given project ID.
+    """
+    db = db_manager.database
+    if db is None:
+        return None
+
+    try:
+        project_id = ObjectId(project_id_str)
+        
+        # Fetch data from all collections
+        project = await db.projects.find_one({"_id": project_id})
+        if not project:
+            return None
+
+        audit_results = await db.audit_results.find_one({"project_id": project_id})
+        ai_insights = await db.ai_insights.find_one({"project_id": project_id})
+        seo_data = await db.seo_data.find_one({"project_id": project_id})
+        crawl_data = await db.crawl_data.find_one({"project_id": project_id})
+
+        # Reconstruct the FinalResponse structure
+        # Note: We need to be careful with the mapping as save_audit_report slightly transformed some fields
+        result = {
+            "executive_summary": ai_insights.get("executive_summary", ""),
+            "management_summary": ai_insights.get("management_summary", {}),
+            "recommended_roadmap": ai_insights.get("recommended_roadmap", []),
+            "data_limitations": ai_insights.get("data_limitations", []),
+            "technical_audit": {
+                "overall_seo_health": audit_results.get("overall_seo_health", 0),
+                "metric_summary": audit_results.get("metric_summary", []),
+                "findings": audit_results.get("findings", [])
+            },
+            "competitive_intelligence": seo_data.get("competitive_intelligence", {}),
+            "crawl_overview": {
+                "analyzed_pages": crawl_data.get("crawl_overview", {}).get("analyzed_pages", 0),
+                "discovered_internal_pages": crawl_data.get("crawl_overview", {}).get("discovered_internal_pages", 0),
+                "sample_coverage_ratio": crawl_data.get("crawl_overview", {}).get("coverage_ratio", "0%"),
+                "sampled_pages": crawl_data.get("pages", []) # Map back 'pages' to 'sampled_pages'
+            },
+            "report_url": project.get("report_url")
+        }
+
+        # Since we might have lost some minor fields during the split-save, 
+        # we check if those objects exist or need default nesting
+        # The frontend mostly uses technical_audit, competitive_intelligence, management_summary, recommended_roadmap
+        
+        return result
+
+    except Exception as e:
+        logger.error(f"Error retrieving audit data for {project_id_str}: {e}")
+        return None
