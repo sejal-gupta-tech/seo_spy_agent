@@ -68,17 +68,7 @@ async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]
         # 5. Prepare 'crawl_data' (Page-level info)
         crawl_overview = result.get("crawl_overview", {})
         
-        # Map sampled pages to the requested structure
-        sampled_pages = []
-        for p in crawl_overview.get("sampled_pages", []):
-            sampled_pages.append({
-                "url": p.get("url"),
-                "seo_health": p.get("seo_health"),
-                "canonical_url": p.get("canonical_url"),
-                "dofollow_links": p.get("internal_links", {}).get("dofollow", 0),
-                "nofollow_links": p.get("internal_links", {}).get("nofollow", 0),
-                "key_issue": p.get("critical_issue", "None")
-            })
+        sampled_pages = list(crawl_overview.get("sampled_pages", []))
 
         crawl_doc = {
             "project_id": project_id,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -74,19 +74,64 @@ class URLStructure(BaseModel):
     score: int
 
 
+class PageInfo(BaseModel):
+    title: str = "N/A"
+    meta_description: str = "Not Found"
+    canonical: str = "Not Found"
+    indexing_status: str = "Unknown"
+
+class PerformanceItem(BaseModel):
+    score: int = 0
+    load_time: str = "0s"
+    status: str = "N/A"
+
+class PagePerformance(BaseModel):
+    mobile: PerformanceItem
+    desktop: PerformanceItem
+    issues: List[str] = []
+
+class PageHeadings(BaseModel):
+    h1_count: int = 0
+    h1_content: str = "Missing"
+    h2_count: int = 0
+    h3_count: int = 0
+    warnings: List[str] = []
+
+class PageContent(BaseModel):
+    word_count: int = 0
+    quality: str = "N/A"
+    keyword_gaps: List[str] = []
+
+class TechnicalSEO(BaseModel):
+    mobile_friendly: bool = True
+    https: bool = True
+    broken_links: List[str] = []
+    crawl_issues: List[str] = []
+
+class InternalLinking(BaseModel):
+    dofollow_links: int = 0
+    nofollow_links: int = 0
+
+class Backlinks(BaseModel):
+    page_authority: int = 0
+
 class PageSummary(BaseModel):
+    model_config = {"extra": "allow"}
+    
     url: str
-    page_type: str
-    title: str
-    word_count: int
-    seo_health: str
-    key_issue: str
-    canonical_url: str
-    has_canonical: bool
-    page_authority: int
-    dofollow_links: int
-    nofollow_links: int
-    url_structure: URLStructure
+    page_info: PageInfo
+    performance: PagePerformance
+    headings: PageHeadings
+    content: PageContent
+    technical_seo: TechnicalSEO
+    internal_linking: InternalLinking
+    backlinks: Backlinks
+    seo_score: int = 0
+    scores: Optional[Dict[str, int]] = None
+    issues: Dict[str, List[str]] = Field(default_factory=lambda: {"critical": [], "high": [], "medium": [], "low": []})
+    recommendations: List[str] = []
+    priority_action: str = "None"
+
 
 
 class CrawlOverview(BaseModel):

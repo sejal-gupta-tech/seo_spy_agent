@@ -90,14 +90,19 @@ def _extract_meta_content(soup: BeautifulSoup, attr_name: str, attr_value: str) 
 
 
 def _extract_text_word_count(soup: BeautifulSoup) -> int:
-    body = soup.body or soup
-    clean_soup = BeautifulSoup(str(body), "lxml")
-
-    for tag in clean_soup(["script", "style", "noscript", "svg"]):
-        tag.decompose()
-
-    text = clean_soup.get_text(" ", strip=True)
-    words = re.findall(r"\b[\w'-]+\b", text)
+    """Extract word count efficiently by filtering text nodes directly."""
+    # Define tags to exclude from word count
+    exclude_tags = {"script", "style", "noscript", "svg", "header", "footer", "nav"}
+    
+    # Get all text nodes that are not children of excluded tags
+    texts = soup.find_all(string=True)
+    visible_texts = [
+        t for t in texts 
+        if t.parent.name not in exclude_tags
+    ]
+    
+    combined_text = " ".join(visible_texts)
+    words = re.findall(r"\b[\w'-]+\b", combined_text)
     return len(words)
 
 
