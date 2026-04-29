@@ -18,6 +18,7 @@ from app.services.report_builder import (
     build_pdf_template_data,
     build_recommended_roadmap,
 )
+from app.services.link_analysis import analyze_internal_linking, estimate_backlink_profile
 from app.services.site_profile import build_site_profile
 from app.utils.helpers import format_percentage
 
@@ -68,19 +69,20 @@ def _sitemap_status_label(crawl_data: dict) -> str:
 
 
 def _favicon_status_label(crawl_data: dict) -> str:
-    primary_page = crawl_data.get("primary_page", {})
+    pages = crawl_data.get("pages", [])
+    if not pages:
+        return "Missing"
     
-    # has_favicon is only True when a standard rel="icon" or rel="shortcut icon"
-    # link tag was found with a non-empty, non-data-URI href.
-    # apple-touch-icon and mask-icon are explicitly excluded by the crawler.
-    if primary_page.get("has_favicon") and primary_page.get("favicon_url"):
+    primary_page = pages[0]
+    favicon_data = primary_page.get("favicon", {})
+    if favicon_data.get("status") == "Present":
         return "Found (HTML link tag)"
 
     favicon_resource = crawl_data.get("favicon", {})
     if favicon_resource.get("exists") and favicon_resource.get("status_code") == 200:
         return f"Found (/favicon.ico · {favicon_resource.get('status_code')})"
 
-    return _status_label(favicon_resource, "Missing")
+    return "Missing"
 
 
 class SEOAuditPipeline:
@@ -104,6 +106,15 @@ class SEOAuditPipeline:
         self.ai_insights = {}
         self.blog_suggestions = {}
         self.guest_posts = {}
+        self.link_analysis = {}
+        self.executive_summary = ""
+        self.management_summary = {}
+        self.recommended_roadmap = []
+        self.detailed_appendix = {}
+        self.data_limitations = []
+        self.pdf_template_data = {}
+        self.page_audits = []
+        self.final_report_id = ""
 
     async def emit(self, event: dict) -> None:
         """Emit progress updates with elapsed time."""
@@ -155,7 +166,11 @@ class SEOAuditPipeline:
         })
 
         # Enrich pages with performance data
-        perf_score = self.page_speed_data.get("score", 100.0)
+        if self.page_speed_data and "mobile" in self.page_speed_data:
+            perf_score = float(self.page_speed_data["mobile"].get("score") if self.page_speed_data["mobile"].get("score") is not None else 100.0)
+        else:
+            perf_score = float(self.page_speed_data.get("score") if self.page_speed_data.get("score") is not None else 100.0)
+            
         for page in self.pages:
             page["performance_score"] = perf_score
 
@@ -165,9 +180,30 @@ class SEOAuditPipeline:
             loop.run_in_executor(None, audit_seo, page, page.get("url", ""))
             for page in self.pages
         ]
-        page_audits = await asyncio.gather(*audit_tasks)
-
-        self.sitewide_audit = audit_sitewide(self.crawl_data, page_audits, self.page_speed_data)
+        self.page_audits = await asyncio.gather(*audit_tasks)
+        self.sitewide_audit = audit_sitewide(self.crawl_data, self.page_audits, self.page_speed_data)
+        
+        # Link Analysis
+        internal_results = analyze_internal_linking(self.pages)
+        backlink_results = estimate_backlink_profile(self.pages)
+        
+        # Collect unique external domains for schema compatibility
+        unique_external_domains = set()
+        for page in self.pages:
+            unique_external_domains.update(page.get("external_domains", []))
+            
+        self.link_analysis = {
+            "internal": internal_results,
+            "external": {
+                "total_external_links": backlink_results.get("outbound_link_count", 0),
+                "domains": sorted(list(unique_external_domains))
+            },
+            "backlinks": {
+                "backlink_strength": backlink_results.get("backlink_strength", "Unknown"),
+                "estimated_backlinks": backlink_results.get("estimated_backlinks", 0),
+                "referring_domains": backlink_results.get("referring_domains", 0)
+            }
+        }
         
         await self.emit({
             "type": "health_snapshot",
@@ -247,14 +283,38 @@ class SEOAuditPipeline:
         self.management_summary = build_management_summary(self.sitewide_audit, self.comparison_result, self.site_profile, self.crawl_data)
         self.executive_summary = build_executive_summary(self.sitewide_audit, self.comparison_result, self.site_profile, self.management_summary)
         self.recommended_roadmap = build_recommended_roadmap(self.sitewide_audit, self.comparison_result)
-        self.detailed_appendix = build_detailed_appendix(self.crawl_data, {}, self.sitewide_audit)
+        primary_page_audit = self.page_audits[0] if self.page_audits else {}
+        self.detailed_appendix = build_detailed_appendix(self.crawl_data, primary_page_audit, self.sitewide_audit)
 
-        from app.services.report_generator import save_report_to_file
+        from app.services.report_generator import render_report_html, generate_pdf_report
         self.pdf_template_data = build_pdf_template_data(
-            self.url, self.site_profile, self.management_summary, self.executive_summary,
-            self.recommended_roadmap, self.detailed_appendix, self.data_limitations
+            url=self.url,
+            executive_summary=self.executive_summary,
+            management_summary=self.management_summary,
+            audit_result=self.sitewide_audit,
+            comparison_result=self.comparison_result,
+            crawl_data=self.crawl_data,
+            site_profile=self.site_profile,
+            data_limitations=self.data_limitations,
+            recommended_roadmap=self.recommended_roadmap,
+            content_strategy={
+                "blog_suggestions": self.blog_suggestions.get("blog_posts", []),
+                "guest_post_titles": self.guest_posts.get("guest_post_titles", [])
+            },
+            keyword_analysis=self.keyword_data,
+            page_speed=self.page_speed_data,
+            link_analysis=self.link_analysis,
+            ai_insights=self.ai_insights
         )
-        self.final_report_id = save_report_to_file(self.pdf_template_data)
+        html = render_report_html(self.pdf_template_data)
+        fallback_html = render_report_html(
+            self.pdf_template_data,
+            template_name="report_fallback.html",
+        )
+        self.final_report_id = generate_pdf_report(
+            html,
+            fallback_html_content=fallback_html,
+        )
 
     async def execute(self) -> dict:
         """Run the full pipeline."""
@@ -283,19 +343,28 @@ class SEOAuditPipeline:
             "market_opportunities": self.comparison_result.get("market_opportunities", []),
         }
             
+        site_favicon = self.crawl_data.get("site_favicon", {
+            "status": "Missing",
+            "url": "",
+            "source": "fallback"
+        })
+
         return {
             "url": self.url,
             "overall_score": self.sitewide_audit.get("overall_score", 0),
             "seo_health": self.sitewide_audit.get("overall_seo_health", "0%"),
+            "site_favicon": site_favicon,
             "site_profile": self.site_profile,
             "crawl_overview": {
                 "analyzed_pages": len(self.pages),
                 "discovered_internal_pages": self.crawl_data.get("discovered_internal_pages", 0),
                 "sample_coverage_ratio": format_percentage(self.crawl_data.get("sample_coverage_ratio", 0.0)),
+                "crawl_depth": self.crawl_data.get("crawl_depth", 1),
                 "robots_txt_status": self.crawl_data.get("robots", {}).get("status_string", "Missing"),
                 "sitemap_status": _sitemap_status_label(self.crawl_data),
                 "favicon_status": _favicon_status_label(self.crawl_data),
                 "domain_authority": calculate_domain_authority(self.pages),
+                "broken_internal_link_ratio": format_percentage(self.crawl_data.get("broken_internal_link_ratio", 0.0)),
                 "sampled_pages": self.sitewide_audit.get("page_summaries", []),
             },
             "technical_audit": {
@@ -310,6 +379,7 @@ class SEOAuditPipeline:
             "recommended_roadmap": self.recommended_roadmap,
             "detailed_appendix": self.detailed_appendix,
             "data_limitations": self.data_limitations,
+            "pdf_template_data": self.pdf_template_data,
             "competitive_intelligence": competitive_intelligence,
             "content_strategy": {
                 "blog_suggestions": self.blog_suggestions.get("blog_posts", []),
@@ -318,6 +388,7 @@ class SEOAuditPipeline:
             "keyword_analysis": self.keyword_data,
             "ai_insights": self.ai_insights,
             "page_speed": self.page_speed_data,
+            "link_analysis": self.link_analysis,
             "report_url": f"/download-report/{self.final_report_id}",
             "status": "completed"
         }

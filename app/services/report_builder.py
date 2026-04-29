@@ -276,6 +276,8 @@ def build_pdf_template_data(
         for finding in findings[:4]
     ]
 
+    site_favicon = crawl_data.get("site_favicon", {})
+    
     crawl_overview = [
         {
             "label": "Pages Sampled",
@@ -291,7 +293,7 @@ def build_pdf_template_data(
         },
         {
             "label": "Favicon Status",
-            "value": "Found" if (crawl_data.get("favicon", {}).get("exists") or crawl_data.get("primary_page", {}).get("has_favicon")) else "Missing",
+            "value": "Found" if site_favicon.get("status") == "Present" else "Missing",
         },
         {
             "label": "Broken Link Ratio",
@@ -307,6 +309,7 @@ def build_pdf_template_data(
         "executive_summary": executive_summary,
         "board_verdict": management_summary.get("board_verdict", ""),
         "management_summary": management_summary,
+        "site_favicon": site_favicon,
         "hero_metrics": [
             {
                 "label": "Overall SEO Health",

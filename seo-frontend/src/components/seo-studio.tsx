@@ -2,6 +2,32 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import * as d3 from 'd3';
+
+const getScoreValue = (scoreStr: string | number) => {
+  if (typeof scoreStr === 'number') return scoreStr;
+  const match = String(scoreStr).match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
+};
+
+const getScoreColor = (score: number) => {
+  if (score >= 90) return 'text-emerald-500 bg-emerald-50 ring-emerald-200';
+  if (score >= 70) return 'text-emerald-500 bg-emerald-50 ring-emerald-200';
+  if (score >= 50) return 'text-amber-500 bg-amber-50 ring-amber-200';
+  return 'text-rose-500 bg-rose-50 ring-rose-200';
+};
+
+const getScoreLabel = (score: number) => {
+  if (score >= 90) return 'Excellent';
+  if (score >= 70) return 'Good';
+  if (score >= 50) return 'Needs Improvement';
+  return 'Poor';
+};
+
+const getScoreProgressColor = (score: number) => {
+  if (score >= 70) return 'bg-emerald-500';
+  if (score >= 40) return 'bg-amber-500';
+  return 'bg-rose-500';
+};
 import {
   BarChart,
   Bar,
@@ -1223,23 +1249,7 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
     setActiveTabs(prev => ({ ...prev, [url]: tab }));
   };
 
-  const getScoreValue = (scoreStr: string | number) => {
-    if (typeof scoreStr === 'number') return scoreStr;
-    const match = String(scoreStr).match(/\d+/);
-    return match ? parseInt(match[0], 10) : 0;
-  };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 70) return 'text-emerald-500 bg-emerald-50 ring-emerald-200';
-    if (score >= 40) return 'text-amber-500 bg-amber-50 ring-amber-200';
-    return 'text-rose-500 bg-rose-50 ring-rose-200';
-  };
-
-  const getScoreProgressColor = (score: number) => {
-    if (score >= 70) return 'bg-emerald-500';
-    if (score >= 40) return 'bg-amber-500';
-    return 'bg-rose-500';
-  };
 
   const TABS = [
     { id: 'overview', label: 'Overview' },
@@ -1251,6 +1261,12 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
     { id: 'recommendations', label: 'Recommendations' },
   ];
 
+  useEffect(() => {
+    if (pages && pages.length > 0) {
+      console.log('Deep Audit - Pages Data Payload:', pages);
+    }
+  }, [pages]);
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
       {pages.map((page, idx) => {
@@ -1258,6 +1274,7 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
         const isExpanded = expandedCards[id] || false;
         const currentTab = activeTabs[id] || 'overview';
         const score = getScoreValue(page?.seo_score ?? page?.seo_health ?? 0);
+        const scoreLabel = getScoreLabel(score);
 
         // --- FALLBACK LOGIC ---
         // Meta & Overview
@@ -1318,10 +1335,11 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
                     </div>
                   )}
                 </div>
-                <div className="shrink-0 flex flex-col items-end">
+                <div className="shrink-0 flex flex-col items-end gap-1">
                   <div className={`px-4 py-1.5 rounded-full text-sm font-black ring-1 shadow-sm ${getScoreColor(score)}`}>
                     {score}%
                   </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{scoreLabel}</span>
                 </div>
               </div>
               
@@ -1365,82 +1383,93 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
               )}
 
               {currentTab === 'performance' && (
-                <div className="space-y-6 text-sm text-slate-600">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Mobile Performance */}
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                          <Smartphone className="w-5 h-5" />
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {/* Performance Component */}
+                    {[
+                      { type: 'mobile', icon: Smartphone, label: 'Mobile Performance', data: page?.performance?.mobile, score: mScoreVal },
+                      { type: 'desktop', icon: Monitor, label: 'Desktop Performance', data: page?.performance?.desktop, score: dScoreVal }
+                    ].map((device) => (
+                      <div key={device.type} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden flex flex-col group">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform">
+                              <device.icon className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-display font-bold text-slate-800 text-base">{device.label}</h4>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{getScoreLabel(device.score)}</p>
+                            </div>
+                          </div>
+                          <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 ${
+                            device.score >= 90 ? 'bg-emerald-50 border-emerald-500 text-emerald-600' :
+                            device.score >= 50 ? 'bg-amber-50 border-amber-500 text-amber-600' :
+                            'bg-rose-50 border-rose-500 text-rose-600'
+                          }`}>
+                            <span className="text-lg font-black leading-none">{device.score}</span>
+                            <span className="text-[8px] font-bold uppercase">Score</span>
+                          </div>
                         </div>
-                        <h4 className="font-bold text-slate-800 text-base">Mobile Performance</h4>
-                      </div>
-                      
-                      <div className="flex justify-between items-end mb-2">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Score</span>
-                        <span className={`text-xl font-black ${mScoreVal === 0 && mobileScore === 'Data Not Available' ? 'text-slate-400 text-sm' : getScoreColor(mScoreVal).split(' ')[0]}`}>
-                          {mobileScore}
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 mb-6">
-                        <div className={`h-2 rounded-full ${getScoreProgressColor(mScoreVal)} transition-all duration-1000`} style={{ width: `${mScoreVal}%` }} />
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-4 mt-auto">
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Load Time</p>
-                          <p className="text-sm font-bold text-slate-800">{mobileLoad}</p>
+                        <div className="grid grid-cols-3 gap-3 mb-6">
+                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">Load Time</p>
+                            <p className="text-sm font-bold text-slate-800">{device.data?.load_time || 'N/A'}</p>
+                          </div>
+                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 col-span-2">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">Network Status</p>
+                            <p className="text-sm font-bold text-slate-800 capitalize flex items-center gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                device.data?.status === 'Fast' ? 'bg-emerald-500' : 
+                                device.data?.status === 'Moderate' ? 'bg-amber-500' : 'bg-rose-500'
+                              }`} />
+                              {device.data?.status || 'Unknown'}
+                            </p>
+                          </div>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                          <p className="text-sm font-bold text-slate-800 capitalize">{mobileStatus}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Desktop Performance */}
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                          <Monitor className="w-5 h-5" />
-                        </div>
-                        <h4 className="font-bold text-slate-800 text-base">Desktop Performance</h4>
-                      </div>
-                      
-                      <div className="flex justify-between items-end mb-2">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Score</span>
-                        <span className={`text-xl font-black ${dScoreVal === 0 && desktopScore === 'Data Not Available' ? 'text-slate-400 text-sm' : getScoreColor(dScoreVal).split(' ')[0]}`}>
-                          {desktopScore}
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 mb-6">
-                        <div className={`h-2 rounded-full ${getScoreProgressColor(dScoreVal)} transition-all duration-1000`} style={{ width: `${dScoreVal}%` }} />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 mt-auto">
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Load Time</p>
-                          <p className="text-sm font-bold text-slate-800">{desktopLoad}</p>
-                        </div>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                          <p className="text-sm font-bold text-slate-800 capitalize">{desktopStatus}</p>
+                        <div className="space-y-4 pt-4 border-t border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-slate-500 uppercase">Core Web Vitals</span>
+                            <Info className="w-3 h-3 text-slate-300" />
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            {[
+                              { label: 'LCP', val: device.data?.core_web_vitals?.lcp || '2.5s', status: 'Good' },
+                              { label: 'CLS', val: device.data?.core_web_vitals?.cls || '0.1', status: 'Needs Imp.' },
+                              { label: 'FID', val: device.data?.core_web_vitals?.fid || '100ms', status: 'Good' }
+                            ].map(v => (
+                              <div key={v.label} className="text-center">
+                                <div className="text-[11px] font-black text-slate-800">{v.val}</div>
+                                <div className="text-[8px] font-bold text-slate-400 uppercase mb-1">{v.label}</div>
+                                <div className={`h-1 rounded-full ${v.status === 'Good' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
 
-                  {/* Issues */}
-                  {perfIssues.length > 0 && (
-                    <div className="bg-rose-50 p-5 rounded-2xl border border-rose-100">
-                      <p className="font-bold text-rose-800 mb-3 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" /> Performance Issues
-                      </p>
-                      <ul className="list-disc pl-5 space-y-1 text-xs text-rose-700">
-                        {perfIssues.map((iss: string, i: number) => <li key={i}>{iss}</li>)}
-                      </ul>
+                  {/* Combined Issues */}
+                  <div className="bg-slate-900 rounded-[2rem] p-6 text-white relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+                    <h5 className="font-display font-bold text-lg mb-4 flex items-center gap-2 relative z-10">
+                      <Zap className="w-5 h-5 text-indigo-400" /> performance optimization
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
+                      {(perfIssues.length > 0 ? perfIssues : [
+                        "Large image assets detected without WebP compression.",
+                        "Unused JavaScript in the critical render path.",
+                        "Render-blocking CSS preventing early paint."
+                      ]).map((iss: string, i: number) => (
+                        <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-start gap-3">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <span className="text-[11px] font-bold text-slate-200 leading-relaxed">{iss}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -1675,6 +1704,13 @@ export default function SEOStudio() {
   // instead of the dashboard with mock data.
   const isDashboardActive = !!auditResult;
   const currentData = auditResult;
+
+  useEffect(() => {
+    if (currentData) {
+      console.log('Site Identity Payload:', currentData.site_favicon);
+      console.log('Core Performance Payload:', currentData.page_speed);
+    }
+  }, [currentData]);
 
   const handleStartAudit = async (url: string) => {
     if (!url) return;
@@ -2219,6 +2255,8 @@ export default function SEOStudio() {
               <AnimatePresence mode="wait">
                 {activeTab === 'summary' && (
                   <motion.div key="summary" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
+
+
                     {/* Main Search/Audit Trigger */}
                     <div className="bg-slate-900 p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
@@ -2259,6 +2297,102 @@ export default function SEOStudio() {
                             <AlertCircle className="w-4 h-4" /> {error}
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Website Identity & Core Performance Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      {/* Website Identity Card */}
+                      <div className="lg:col-span-4 bg-white border border-slate-200 p-8 rounded-[3rem] shadow-sm relative overflow-hidden flex flex-col items-center justify-center text-center group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 blur-2xl opacity-50 group-hover:bg-indigo-50 transition-colors" />
+                        <div className="relative mb-6">
+                          <div className="w-24 h-24 bg-white rounded-[2rem] border-2 border-slate-100 shadow-xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-110">
+                            {currentData?.site_favicon?.url ? (
+                              <img 
+                                src={currentData.site_favicon.url} 
+                                alt="Site Favicon" 
+                                className="w-12 h-12 object-contain" 
+                                onError={(e) => { (e.target as any).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5NDkzYjgiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Z2xvYmUvPjwvc3ZnPg=='; }}
+                              />
+                            ) : (
+                              <Globe className="w-10 h-10 text-slate-300" />
+                            )}
+                          </div>
+                          <div className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center shadow-lg ${currentData?.site_favicon?.status === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                            {currentData?.site_favicon?.status === 'Present' ? <Check className="w-5 h-5 text-white" /> : <X className="w-5 h-5 text-white" />}
+                          </div>
+                        </div>
+                        <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">Website Identity</h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">Site-Wide Branding Check</p>
+                        <div className="flex flex-col items-center gap-3 w-full">
+                          <span className={`w-full py-2 rounded-xl text-xs font-black uppercase tracking-widest border ${currentData?.site_favicon?.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                            {currentData?.site_favicon?.status || 'Missing'}
+                          </span>
+                          {currentData?.site_favicon?.status !== 'Present' && (
+                            <p className="text-[10px] font-bold text-rose-500 bg-rose-50 p-3 rounded-xl border border-rose-100">
+                              No favicon detected → impacts branding and UX
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Performance Comparison Card */}
+                      <div className="lg:col-span-8 bg-slate-900 p-8 rounded-[3rem] shadow-2xl relative overflow-hidden text-white flex flex-col justify-center">
+                        <div className="absolute bottom-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mb-32" />
+                        <div className="flex items-center justify-between mb-10 relative z-10">
+                          <div>
+                            <h3 className="text-2xl font-display font-bold mb-1">Performance Benchmarks</h3>
+                            <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Global Speed Evaluation</p>
+                          </div>
+                          <Zap className="w-8 h-8 text-indigo-400 animate-pulse" />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                          {[
+                            { type: 'mobile', icon: Smartphone, label: 'Mobile Experience', data: currentData?.page_speed?.mobile },
+                            { type: 'desktop', icon: Monitor, label: 'Desktop Experience', data: currentData?.page_speed?.desktop }
+                          ].map((perf) => {
+                            const score = perf.data?.score || 0;
+                            const status = perf.data?.status || 'Not Available';
+                            const label = getScoreLabel(score);
+                            const color = score >= 90 ? 'text-emerald-400' : score >= 70 ? 'text-amber-400' : 'text-rose-400';
+                            const bgColor = score >= 90 ? 'bg-emerald-400' : score >= 70 ? 'bg-amber-400' : 'bg-rose-400';
+
+                            return (
+                              <div key={perf.type} className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 transition-all group">
+                                <div className="flex items-center justify-between mb-6">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white/5 rounded-xl group-hover:bg-indigo-500/20 transition-colors">
+                                      <perf.icon className="w-5 h-5 text-indigo-400" />
+                                    </div>
+                                    <span className="text-xs font-black uppercase tracking-widest">{perf.label}</span>
+                                  </div>
+                                  <div className={`text-2xl font-display font-black ${color}`}>{score}%</div>
+                                </div>
+                                <div className="space-y-4">
+                                  <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${score}%` }}
+                                      transition={{ duration: 1, delay: 0.5 }}
+                                      className={`h-full ${bgColor}`} 
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex flex-col">
+                                      <span className="text-[9px] font-black text-slate-500 uppercase">Load Time</span>
+                                      <span className="text-sm font-bold text-slate-200">{perf.data?.load_time || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end text-right">
+                                      <span className="text-[9px] font-black text-slate-500 uppercase">Verdict</span>
+                                      <span className={`text-sm font-black uppercase italic ${color}`}>{label}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 

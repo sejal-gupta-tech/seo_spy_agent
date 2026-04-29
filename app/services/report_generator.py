@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -6,13 +7,24 @@ from app.core.config import PROJECT_ROOT, REPORTS_DIR, TEMPLATES_DIR
 from app.core.logger import logger
 
 
-def render_report_html(data: dict) -> str:
+def render_report_html(data: dict, template_name: str = "report.html") -> str:
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
-    template = env.get_template("report.html")
+    template = env.get_template(template_name)
     return template.render(data)
 
 
-def generate_pdf_report(html_content: str) -> str:
+def _delete_if_empty(path: Path) -> None:
+    try:
+        if path.exists() and path.stat().st_size == 0:
+            path.unlink()
+    except OSError:
+        logger.warning("Failed to remove empty file at %s", path)
+
+
+def generate_pdf_report(
+    html_content: str,
+    fallback_html_content: str | None = None,
+) -> str:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
     task_id = str(uuid.uuid4())
@@ -29,18 +41,25 @@ def generate_pdf_report(html_content: str) -> str:
         logger.warning("WeasyPrint failed (likely missing GTK): %s. Trying xhtml2pdf fallback...", str(e))
 
     # Try xhtml2pdf as fallback (no native dependencies)
+    fallback_source = fallback_html_content or html_content
     try:
         from xhtml2pdf import pisa
         with pdf_path.open("wb") as f:
-            pisa_status = pisa.CreatePDF(html_content, dest=f)
-        
-        if not pisa_status.err:
+            pisa_status = pisa.CreatePDF(
+                fallback_source,
+                dest=f,
+                encoding="utf-8",
+            )
+
+        if not pisa_status.err and pdf_path.exists() and pdf_path.stat().st_size > 0:
             logger.info("PDF generated at %s using xhtml2pdf fallback", pdf_path)
             return task_id
         else:
             logger.error("xhtml2pdf failed to generate PDF: %s", pisa_status.err)
     except Exception as e:
         logger.error("xhtml2pdf fallback failed: %s", str(e))
+
+    _delete_if_empty(pdf_path)
 
     # Final fallback: save HTML instead
     try:

@@ -14,6 +14,7 @@ from app.core.config import (
     CRAWL_MAX_PAGES,
     HTTP_TIMEOUT_SECONDS,
 )
+from app.core.logger import logger
 from app.services.progress import ProgressCallback, emit_progress
 
 CRAWL_HEADERS = {
@@ -171,6 +172,61 @@ def _classify_page_type(url: str) -> str:
     return "Other"
 
 
+def _analyze_page_favicon(soup: BeautifulSoup, final_url: str) -> dict:
+    """
+    Robust favicon detection (Task 1 & 2):
+    - Supports multiple sources: icon, shortcut icon, apple-touch-icon.
+    - Uses flexible matching for rel attributes.
+    - Ensures absolute URLs using urljoin.
+    """
+    # Task 1: Flexible matching (contains "icon")
+    icon_tags = soup.find_all("link", rel=lambda x: x and any("icon" in str(r).lower() for r in (x if isinstance(x, list) else [x])))
+    
+    best_favicon = None
+    
+    for tag in icon_tags:
+        rel = [str(r).lower() for r in (tag.get("rel", []) if isinstance(tag.get("rel"), list) else [tag.get("rel")])]
+        href = tag.get("href", "").strip()
+        
+        # Task 7: Edge case handling (Missing href or empty rel)
+        if not href or href.startswith("data:"):
+            continue
+            
+        # Task 2: Ensure absolute URL
+        absolute_url = urljoin(final_url, href)
+        
+        # Task 1: Flexible source priority
+        # Priority mapping
+        priority = 3
+        if any("apple-touch-icon" in r for r in rel):
+            priority = 1
+        elif any("icon" in r for r in rel) and not any("shortcut" in r for r in rel):
+            priority = 2
+        elif any("shortcut" in r for r in rel):
+            priority = 4
+            
+        if best_favicon is None or priority < best_favicon["priority"]:
+            best_favicon = {
+                "url": absolute_url,
+                "priority": priority,
+                "source": "html"
+            }
+
+    if best_favicon:
+        logger.debug(f"Favicon detected in HTML: {best_favicon['url']}")
+        return {
+            "status": "Present",
+            "url": normalize_crawl_url(best_favicon["url"]),
+            "source": "html"
+        }
+
+    return {
+        "status": "Missing",
+        "url": "",
+        "source": "html"
+    }
+
+
 def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     soup = BeautifulSoup(response.text, "lxml")
     final_url = normalize_crawl_url(str(response.url))
@@ -193,23 +249,8 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     if canonical_tag and canonical_tag.get("href"):
         canonical_href = normalize_crawl_url(urljoin(final_url, canonical_tag["href"]))
 
-    # Only standard favicon link tags count as a favicon.
-    # apple-touch-icon, mask-icon, etc. are NOT favicons and must be excluded.
-    _FAVICON_REL_VALUES = {"icon", "shortcut icon"}
-
-    def _is_favicon_rel(value) -> bool:
-        if not value:
-            return False
-        # rel attribute can be a list (BeautifulSoup) or a string
-        rels = value if isinstance(value, list) else str(value).split()
-        return any(r.lower().strip() in _FAVICON_REL_VALUES for r in rels)
-
-    favicon_tag = soup.find("link", rel=_is_favicon_rel)
-    favicon_href = ""
-    if favicon_tag and favicon_tag.get("href"):
-        raw_href = favicon_tag["href"].strip()
-        if raw_href and not raw_href.startswith("data:"):
-            favicon_href = normalize_crawl_url(urljoin(final_url, raw_href))
+    # Task 5: Extract favicon for any page that has one, prioritize the first found
+    favicon_data = _analyze_page_favicon(soup, str(response.url))
 
     images = soup.find_all("img")
     missing_alt_images = [
@@ -277,8 +318,7 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
         "meta_description_length": len(description),
         "canonical_url": canonical_href,
         "has_canonical": bool(canonical_href),
-        "favicon_url": favicon_href,
-        "has_favicon": bool(favicon_href),
+        "favicon": favicon_data, # Task 5: Still extracted but might be None for internal pages
         "has_viewport_meta": bool(viewport_content),
         "robots_directives": robots_directives,
         "is_indexable": "noindex" not in robots_directives,
@@ -328,50 +368,36 @@ async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str)
 
 async def _fetch_favicon(client: httpx.AsyncClient, target_url: str) -> dict:
     """
+    Task 3: Fallback Detection
     Fetches /favicon.ico and validates it is actually an image.
-    Many servers return HTTP 200 with an HTML error page at /favicon.ico when
-    no favicon exists — content-type validation catches these false positives.
     """
-    _IMAGE_TYPES = {
-        "image/x-icon", "image/vnd.microsoft.icon", "image/png",
-        "image/jpeg", "image/gif", "image/svg+xml", "image/webp",
-    }
     try:
         response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
         content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
         status_code = response.status_code
 
-        # A 200 with an HTML body is NOT a valid favicon (CDN / server error page)
+        # A 200 with an HTML body is NOT a valid favicon (SPA catch-all error page)
         is_image = any(ct in content_type for ct in ("image/",))
         is_html = "text/html" in content_type or (
             response.text.lstrip()[:15].lower().startswith(("<!doctype", "<html"))
         )
 
         exists = status_code == 200 and is_image and not is_html
-        status_string = (
-            f"Found ({status_code} · {content_type})" if exists
-            else "Missing" if status_code != 200
-            else f"Invalid (HTTP 200 but content-type is '{content_type}', not an image)"
-        )
-
-        return {
-            "url": str(response.url),
-            "status_code": status_code,
-            "exists": exists,
-            "content_type": content_type,
-            "status_string": status_string,
-            "body": "",
-        }
+        
+        if exists:
+            return {
+                "status": "Present",
+                "url": str(response.url),
+                "source": "fallback"
+            }
     except Exception as exc:
-        return {
-            "url": target_url,
-            "status_code": 0,
-            "exists": False,
-            "content_type": "",
-            "status_string": "Missing",
-            "body": "",
-            "error": str(exc),
-        }
+        pass
+
+    return {
+        "status": "Missing",
+        "url": "",
+        "source": "fallback"
+    }
 
 async def _fetch_robots_txt(client: httpx.AsyncClient, target_url: str) -> dict:
     try:
@@ -743,6 +769,7 @@ async def crawl_site(
             if sitemap_url and sitemap_url.startswith("http"):
                 declared_sitemaps.append(sitemap_url)
 
+    # RESTORE MISSING ASSIGNMENTS
     primary_page = pages[0] if pages else {}
     sample_coverage_ratio = (
         round((len(pages) / len(discovered_urls)) * 100, 1)
@@ -750,10 +777,34 @@ async def crawl_site(
         else 0.0
     )
 
+    # Task 4: Final Site Favicon Assembly (MUST BE BEFORE PAGE KEY DELETION)
+    # Search for the first page that actually found a favicon in HTML
+    site_favicon = None
+    for p in pages:
+        if p.get("favicon") and p["favicon"].get("status") == "Present":
+            site_favicon = p["favicon"]
+            break
+            
+    if not site_favicon:
+        if favicon_data and favicon_data.get("status") == "Present":
+            site_favicon = favicon_data
+        else:
+            site_favicon = {
+                "status": "Missing",
+                "url": urljoin(normalized_start_url, "/favicon.ico"),
+                "source": "fallback"
+            }
+
+    # Task 5: Remove favicon from individual pages for final summary
+    for p in pages:
+        if "favicon" in p:
+            del p["favicon"]
+
     summary = {
         "base_url": normalized_start_url,
         "domain": base_domain,
         "pages": pages,
+        "site_favicon": site_favicon,
         "primary_page": primary_page,
         "analyzed_pages": len(pages),
         "discovered_internal_pages": len(discovered_urls),

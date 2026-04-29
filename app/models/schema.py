@@ -85,6 +85,11 @@ class PerformanceItem(BaseModel):
     load_time: str = "0s"
     status: str = "N/A"
 
+class SiteFavicon(BaseModel):
+    status: str
+    url: str
+    source: str
+
 class PagePerformance(BaseModel):
     mobile: PerformanceItem
     desktop: PerformanceItem
@@ -226,6 +231,7 @@ class PDFTemplateData(BaseModel):
     ai_insights: List[AIInsightItem]
     sampled_pages: List[PageSummary]
     competitor_sample_size: int
+    site_favicon: Optional[SiteFavicon] = None
     keyword_overlap_score: str
     content_gap_ratio: str
     data_limitations: List[DataLimitation]
@@ -246,10 +252,12 @@ class ContentStrategy(BaseModel):
 
 
 class PageSpeedData(BaseModel):
-    score: int
-    response_time: float
-    page_size_kb: float
-    status: str
+    score: int = 0
+    response_time: float = 0.0
+    page_size_kb: float = 0.0
+    status: str = "N/A"
+    mobile: Optional[PerformanceItem] = None
+    desktop: Optional[PerformanceItem] = None
 
 
 class KeywordIntent(BaseModel):
@@ -300,6 +308,11 @@ class AIInsights(BaseModel):
 
 
 class FinalResponse(BaseModel):
+    url: str
+    overall_score: Optional[float] = 0.0
+    seo_health: Optional[str] = "0%"
+    site_favicon: Optional[SiteFavicon] = None
+    site_profile: Optional[Dict[str, Any]] = None
     executive_summary: str
     management_summary: ManagementSummary
     crawl_overview: CrawlOverview
@@ -315,6 +328,7 @@ class FinalResponse(BaseModel):
     link_analysis: LinkAnalysis
     ai_insights: AIInsights
     report_url: Optional[str] = None
+    status: Optional[str] = "completed"
 
 
 class AnalysisJobAccepted(BaseModel):

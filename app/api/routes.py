@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from app.core.logger import logger
 from app.core.errors import ServiceError
+from app.core.config import REPORTS_DIR
 from app.models.schema import (
     AnalysisJobAccepted,
     AnalysisJobStatus,
@@ -80,6 +81,7 @@ async def fix_issue(data: FixRequest):
         raise HTTPException(status_code=500, detail=f"Fix generation failed: {exc}")
 
 
+@router.post("/analyze", response_model=FinalResponse, dependencies=[Depends(_require_api_key)])
 @router.post("/analyze-url", response_model=FinalResponse, dependencies=[Depends(_require_api_key)])
 async def analyze(data: URLRequest):
     normalized_url = normalize_url(data.url)
@@ -98,7 +100,7 @@ async def analyze(data: URLRequest):
                 logger.error("Failed to store structured audit in MongoDB: %s", db_exc)
                 
     except Exception as exc:
-        logger.error("Unhandled error in /analyze-url: %s\n%s", exc, traceback.format_exc())
+        logger.error("Unhandled error in analyze: %s\n%s", exc, traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}")
 
     if isinstance(result, dict) and "error" in result:
@@ -152,18 +154,18 @@ def download_report(task_id: str = Depends(_validate_task_id)):
     task_id MUST be a valid UUID — any other value returns 400.
     This prevents path traversal attacks via crafted task IDs.
     """
-    reports_dir = os.path.abspath("reports")
-    pdf_path = Path(reports_dir) / f"{task_id}.pdf"
-    html_path = Path(reports_dir) / f"{task_id}.html"
+    reports_dir = REPORTS_DIR.resolve()
+    pdf_path = (reports_dir / f"{task_id}.pdf").resolve()
+    html_path = (reports_dir / f"{task_id}.html").resolve()
 
     # Double-check resolved path is still inside the reports directory
-    if not str(pdf_path).startswith(reports_dir) or not str(html_path).startswith(reports_dir):
+    if pdf_path.parent != reports_dir or html_path.parent != reports_dir:
         raise HTTPException(status_code=400, detail="Invalid report ID.")
 
-    if pdf_path.exists():
+    if pdf_path.exists() and pdf_path.stat().st_size > 0:
         return FileResponse(str(pdf_path), media_type="application/pdf", filename="seo_report.pdf")
 
-    if html_path.exists():
+    if html_path.exists() and html_path.stat().st_size > 0:
         return FileResponse(str(html_path), media_type="text/html", filename="seo_report.html")
 
     raise HTTPException(status_code=404, detail="Report not found.")

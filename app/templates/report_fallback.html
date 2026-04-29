@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report_title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 16mm 14mm;
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10px;
+            line-height: 1.45;
+            color: #1f2937;
+        }
+
+        h1, h2, h3, h4, p {
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            font-size: 15px;
+            margin: 0 0 8px 0;
+            color: #0f4c5c;
+        }
+
+        h3 {
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+
+        p {
+            margin-bottom: 6px;
+        }
+
+        .section {
+            margin-top: 16px;
+            page-break-inside: avoid;
+        }
+
+        .panel {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #ffffff;
+        }
+
+        .muted {
+            color: #6b7280;
+        }
+
+        .meta-table,
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .meta-table td {
+            padding: 4px 0;
+            vertical-align: top;
+        }
+
+        .table th,
+        .table td {
+            border: 1px solid #d1d5db;
+            padding: 6px;
+            vertical-align: top;
+            word-wrap: break-word;
+        }
+
+        .table th {
+            background: #eef6f8;
+            text-align: left;
+        }
+
+        .two-col {
+            width: 100%;
+        }
+
+        .two-col td {
+            width: 50%;
+            vertical-align: top;
+            padding-right: 8px;
+        }
+
+        ul {
+            margin: 6px 0 0 16px;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h1>{{ report_title }}</h1>
+        <p><strong>Prepared for:</strong> {{ prepared_for }}</p>
+        <p><strong>Website:</strong> {{ website }}</p>
+        <p><strong>Generated on:</strong> {{ generated_on }}</p>
+        <p><strong>Business profile:</strong> {{ business_summary }}</p>
+        <p><strong>Executive summary:</strong> {{ executive_summary }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Management Summary</h2>
+        <table class="meta-table">
+            <tr><td><strong>Board verdict</strong></td><td>{{ management_summary.board_verdict }}</td></tr>
+            <tr><td><strong>Strongest asset</strong></td><td>{{ management_summary.strongest_asset }}</td></tr>
+            <tr><td><strong>Biggest risk</strong></td><td>{{ management_summary.biggest_risk }}</td></tr>
+            <tr><td><strong>Growth opportunity</strong></td><td>{{ management_summary.growth_opportunity }}</td></tr>
+            <tr><td><strong>Confidence note</strong></td><td>{{ management_summary.confidence_note }}</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Hero Metrics</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric in hero_metrics %}
+                <tr>
+                    <td>{{ metric.label }}</td>
+                    <td>{{ metric.value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Crawl Overview</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Signal</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric in crawl_overview %}
+                <tr>
+                    <td>{{ metric.label }}</td>
+                    <td>{{ metric.value }}</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td>Page speed</td>
+                    <td>{{ page_speed.score }}/100, {{ page_speed.status }}, {{ page_speed.response_time }}s, {{ page_speed.page_size_kb }} KB</td>
+                </tr>
+                <tr>
+                    <td>Market comparison</td>
+                    <td>{{ content_gap_ratio }} gap, {{ competitor_sample_size }} competitors sampled, {{ keyword_overlap_score }} keyword overlap</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section page-break">
+        <h2>Priority Actions</h2>
+        {% for action in priority_actions %}
+        <div class="panel">
+            <h3>{{ action.headline }} ({{ action.priority }})</h3>
+            <p><strong>Business impact:</strong> {{ action.business_impact }}</p>
+            <p><strong>Action:</strong> {{ action.action }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h2>Metric Summary</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Current Value</th>
+                    <th>Benchmark</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric in metric_summary %}
+                <tr>
+                    <td>{{ metric.metric }}</td>
+                    <td>{{ metric.current_value }}</td>
+                    <td>{{ metric.benchmark }}</td>
+                    <td>{{ metric.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Technical Findings</h2>
+        {% for finding in technical_findings %}
+        <div class="panel">
+            <h3>{{ finding.metric }} ({{ finding.priority }})</h3>
+            <p><strong>Category:</strong> {{ finding.category }}</p>
+            <p><strong>Status:</strong> {{ finding.status }}</p>
+            <p><strong>Current state:</strong> {{ finding.current_value }}</p>
+            <p><strong>Benchmark:</strong> {{ finding.benchmark }}</p>
+            <p><strong>Business impact:</strong> {{ finding.business_impact }}</p>
+            <p><strong>Recommendation:</strong> {{ finding.recommendation }}</p>
+            {% if finding.evidence %}
+            <ul>
+                {% for evidence in finding.evidence[:3] %}
+                <li><strong>{{ evidence.url }}</strong>: {{ evidence.observation }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="section page-break">
+        <h2>Recommended Roadmap</h2>
+        {% for item in recommended_roadmap %}
+        <div class="panel">
+            <h3>{{ item.timeline }} - {{ item.objective }}</h3>
+            <p><strong>Priority:</strong> {{ item.priority }}</p>
+            <p><strong>Expected outcome:</strong> {{ item.expected_outcome }}</p>
+            <ul>
+                {% for action in item.actions %}
+                <li>{{ action }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h2>Market Opportunities</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Keyword</th>
+                    <th>Score</th>
+                    <th>Gap</th>
+                    <th>Priority</th>
+                    <th>Recommendation</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for opportunity in market_opportunities %}
+                <tr>
+                    <td>{{ opportunity.keyword }}</td>
+                    <td>{{ opportunity.market_opportunity_score }}/10</td>
+                    <td>{{ opportunity.supporting_gap_ratio }}</td>
+                    <td>{{ opportunity.priority }}</td>
+                    <td>{{ opportunity.recommendation }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Keyword and Content Strategy</h2>
+        <table class="two-col">
+            <tr>
+                <td>
+                    <div class="panel">
+                        <h3>Primary Keywords</h3>
+                        <ul>
+                            {% for keyword in keyword_analysis.primary_keywords %}
+                            <li>{{ keyword }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </td>
+                <td>
+                    <div class="panel">
+                        <h3>Guest Post Titles</h3>
+                        <ul>
+                            {% for title in content_strategy.guest_post_titles %}
+                            <li>{{ title }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        {% for post in content_strategy.blog_suggestions %}
+        <div class="panel">
+            <h3>{{ post.title }}</h3>
+            <p><strong>Audience:</strong> {{ post.target_audience }}</p>
+            <p><strong>Intent:</strong> {{ post.search_intent }}</p>
+            <ul>
+                {% for point in post.outline %}
+                <li>{{ point }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="section page-break">
+        <h2>AI Insights</h2>
+        {% for insight in ai_insights %}
+        <div class="panel">
+            <h3>{{ insight.issue }}</h3>
+            <p><strong>Priority:</strong> {{ insight.priority }}</p>
+            <p><strong>Impact:</strong> {{ insight.impact }}</p>
+            <p><strong>Explanation:</strong> {{ insight.explanation }}</p>
+            <p><strong>Recommendation:</strong> {{ insight.recommendation }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h2>Link Analysis</h2>
+        <div class="panel">
+            <p><strong>Internal linking score:</strong> {{ link_analysis.internal.internal_link_score }}/100</p>
+            <p><strong>External links found:</strong> {{ link_analysis.external.total_external_links }}</p>
+            <p><strong>Backlink profile:</strong> {{ link_analysis.backlinks.backlink_strength }}</p>
+            <p><strong>Estimated backlinks:</strong> {{ link_analysis.backlinks.estimated_backlinks }}</p>
+            <p><strong>Referring domains:</strong> {{ link_analysis.backlinks.referring_domains }}</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Sampled Pages</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Page</th>
+                    <th>SEO Health</th>
+                    <th>Word Count</th>
+                    <th>Priority Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for page in sampled_pages %}
+                <tr>
+                    <td>{{ page.url }}</td>
+                    <td>{{ page.seo_score or page.seo_health }}</td>
+                    <td>{{ page.content.word_count if page.content is defined else page.word_count }}</td>
+                    <td>{{ page.priority_action or page.key_issue }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Data Limitations</h2>
+        {% for item in data_limitations %}
+        <div class="panel">
+            <h3>{{ item.data_source }}</h3>
+            <p><strong>Current status:</strong> {{ item.current_status }}</p>
+            <p><strong>Why it matters:</strong> {{ item.why_it_matters }}</p>
+            <p><strong>Next step:</strong> {{ item.next_step }}</p>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

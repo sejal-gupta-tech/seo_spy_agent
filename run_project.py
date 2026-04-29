@@ -226,23 +226,48 @@ asyncio.run(main())
     run_command([str(python_path), "-c", live_script, url], env=build_child_env())
 
 
+def start_frontend() -> subprocess.Popen | None:
+    frontend_dir = ROOT / "seo-frontend"
+    if not frontend_dir.exists():
+        log("Frontend directory 'seo-frontend' not found. Skipping frontend startup.")
+        return None
+
+    log("Starting frontend server...")
+    if not (frontend_dir / "node_modules").exists():
+        log("node_modules not found in frontend directory. Running 'npm install'...")
+        try:
+            subprocess.run(["npm", "install"], cwd=frontend_dir, shell=True, check=True)
+        except subprocess.CalledProcessError:
+            log("Failed to run 'npm install'. Please check your node/npm installation.")
+            return None
+
+    try:
+        # Use shell=True for npm commands on Windows
+        return subprocess.Popen(["npm", "run", "dev"], cwd=frontend_dir, shell=True)
+    except Exception as e:
+        log(f"Failed to start frontend: {e}")
+        return None
+
+
 def start_server(python_path: Path, host: str, port: int) -> None:
     log(f"Starting API server on http://{host}:{port}")
-    os.execvpe(
+    cmd = [
         str(python_path),
-        [
-            str(python_path),
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            host,
-            "--port",
-            str(port),
-        ],
-        build_child_env(),
-    )
-
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host", host,
+        "--port", str(port),
+        "--reload",
+    ]
+    
+    # Use subprocess.run instead of os.execvpe to keep this process as a manager
+    try:
+        subprocess.run(cmd, env=build_child_env(), check=True)
+    except KeyboardInterrupt:
+        log("Server stopped by user.")
+    except subprocess.CalledProcessError as e:
+        log(f"Server exited with error: {e}")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -261,6 +286,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--live-url",
         help="Run a full live analysis against the given URL after smoke checks.",
+    )
+    parser.add_argument(
+        "--no-frontend",
+        action="store_true",
+        help="Do not start the frontend server.",
     )
     parser.add_argument("--host", default="127.0.0.1", help="Host for the uvicorn server.")
     parser.add_argument("--port", type=int, default=8000, help="Port for the uvicorn server.")
@@ -288,7 +318,20 @@ def main() -> None:
         log("Checks completed successfully.")
         return
 
-    start_server(python_path, args.host, args.port)
+    frontend_proc = None
+    if not args.no_frontend:
+        frontend_proc = start_frontend()
+
+    try:
+        start_server(python_path, args.host, args.port)
+    finally:
+        if frontend_proc:
+            log("Shutting down frontend...")
+            frontend_proc.terminate()
+            try:
+                frontend_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                frontend_proc.kill()
 
 
 if __name__ == "__main__":
