@@ -43,6 +43,7 @@ env/
 ENV/
 .venv
 myenv/
+venv_*/
 
 # --- IDE / Editor Files ---
 .vscode/
@@ -71,6 +72,20 @@ reports/*.pdf
 reports/*.html
 app_data/
 temp/
+scratch/
+patched_libs/
+*.png
+*.jpg
+*.jpeg
+
+# --- Utility & Debug Scripts ---
+check_backend.py
+check_db_direct.py
+check_root.py
+diagnose_maven.py
+scratch_favicon_test.py
+start_backend.py
+test_live_api.py
 
 # --- Misc ---
 .DS_Store
