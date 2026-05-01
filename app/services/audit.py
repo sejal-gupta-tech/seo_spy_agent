@@ -1025,6 +1025,7 @@ def _build_page_summary(page: dict, page_audit: dict) -> dict:
             "canonical": canonical,
             "indexing_status": indexing
         },
+        "page_type": page.get("page_type", "General Page"),
         "performance": {
             "mobile": {
                 "score": mob_score,
@@ -1232,8 +1233,8 @@ def audit_sitewide(crawl_data: Dict[str, Any], page_audits: list[dict], page_spe
         "page_summaries": page_summaries,
         "category_scores": {
             "metadata": format_percentage(metadata_module_score),
-            "content": format_percentage(content_module_score),
-            "indexation": format_percentage(indexation_module_score),
+            "content_depth": format_percentage(content_module_score),
+            "technical": format_percentage(indexation_module_score),
             "integrity": format_percentage(integrity_module_score),
         },
     }

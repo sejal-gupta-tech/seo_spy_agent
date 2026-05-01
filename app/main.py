@@ -1,6 +1,11 @@
 import logging
 import os
+import sys
+import platform
 import traceback
+
+# Monkeypatch platform.system() as it hangs on this environment
+platform.system = lambda: "Windows" if sys.platform == "win32" else "Linux"
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -9,9 +14,11 @@ from fastapi.responses import JSONResponse
 
 # Load .env before anything else so OPENAI_API_KEY and friends are available
 # to every module imported below.
+print("[main] Loading dotenv...")
 load_dotenv()
-
+print("[main] Importing router...")
 from app.api.routes import router  # noqa: E402 — must come after load_dotenv()
+print("[main] Importing db_manager...")
 from app.core.database import db_manager # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -42,7 +49,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 

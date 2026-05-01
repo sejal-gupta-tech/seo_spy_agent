@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import * as d3 from 'd3';
 
 const getScoreValue = (scoreStr: string | number) => {
@@ -1228,6 +1228,7 @@ const HelpTooltip = ({ text, suggestion }: { text: string, suggestion?: string }
 };
 
 export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
 
@@ -1249,8 +1250,6 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
     setActiveTabs(prev => ({ ...prev, [url]: tab }));
   };
 
-
-
   const TABS = [
     { id: 'overview', label: 'Overview' },
     { id: 'performance', label: 'Performance' },
@@ -1267,353 +1266,470 @@ export const PageAnalysisCards = ({ pages }: { pages: any[] }) => {
     }
   }, [pages]);
 
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-      {pages.map((page, idx) => {
-        const id = page?.url || String(idx);
-        const isExpanded = expandedCards[id] || false;
-        const currentTab = activeTabs[id] || 'overview';
-        const score = getScoreValue(page?.seo_score ?? page?.seo_health ?? 0);
-        const scoreLabel = getScoreLabel(score);
+  const selectedPage = pages.find(p => p.url === selectedUrl);
 
-        // --- FALLBACK LOGIC ---
-        // Meta & Overview
-        const titleTag = page?.page_info?.title || page?.title || 'N/A';
-        const metaDesc = page?.page_info?.meta_description || page?.page_info?.metaDescription || page?.meta_description || 'Not Found';
-        const idxStatus = page?.indexing_status || page?.page_type || 'Unknown';
-
-        // Content
-        const contentQuality = page?.content?.quality || page?.content?.content_quality || page?.content?.quality_status || 'Not Analyzed';
-        const wordCount = page?.content?.word_count || page?.word_count || 0;
-        const keywordGaps = page?.content?.keyword_gaps || [];
-
-        // Performance
-        const mScoreRaw = page?.performance?.mobile?.score ?? page?.performance?.score;
-        const mobileScore = mScoreRaw != null ? mScoreRaw : 'Data Not Available';
-        const mScoreVal = getScoreValue(mobileScore);
-        
-        const dScoreRaw = page?.performance?.desktop?.score ?? page?.performance?.score;
-        const desktopScore = dScoreRaw != null ? dScoreRaw : 'Data Not Available';
-        const dScoreVal = getScoreValue(desktopScore);
-
-        const mobileLoad = page?.performance?.mobile?.load_time || page?.performance?.load_time || 'N/A';
-        const desktopLoad = page?.performance?.desktop?.load_time || page?.performance?.load_time || 'N/A';
-        
-        const mobileStatus = page?.performance?.mobile?.status || page?.performance?.status || 'Not Analyzed';
-        const desktopStatus = page?.performance?.desktop?.status || page?.performance?.status || 'Not Analyzed';
-
-        const perfIssues = page?.performance?.issues || [];
-
-        // Issues flattened
-        let allIssues: any[] = [];
-        if (Array.isArray(page?.issues)) {
-          allIssues = page?.issues;
-        } else if (page?.issues && typeof page?.issues === 'object') {
-          allIssues = [
-            ...(page.issues.critical || []),
-            ...(page.issues.high || []),
-            ...(page.issues.medium || []),
-            ...(page.issues.low || [])
-          ];
-        } else if (page?.key_issue) {
-          allIssues = [page.key_issue];
-        }
-
-        const allRecs = page?.recommendations || [];
-
-        return (
-          <div key={id} className="bg-white rounded-[1.5rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-            {/* Top Section */}
-            <div className="p-6 bg-slate-50/50 border-b border-slate-100">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1 pr-4 overflow-hidden">
-                  <h3 className="text-sm font-bold text-slate-800 truncate" title={page?.url}>{page?.url || 'Untitled Page'}</h3>
-                  {(page?.priority_action || page?.key_issue) && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-wider rounded-md border border-rose-100">
-                      <AlertCircle className="w-3 h-3" />
-                      Priority: {page?.priority_action || page?.key_issue}
-                    </div>
-                  )}
-                </div>
-                <div className="shrink-0 flex flex-col items-end gap-1">
-                  <div className={`px-4 py-1.5 rounded-full text-sm font-black ring-1 shadow-sm ${getScoreColor(score)}`}>
-                    {score}%
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{scoreLabel}</span>
-                </div>
-              </div>
-              
-              <div className="w-full bg-slate-200 rounded-full h-1.5">
-                <div className={`h-1.5 rounded-full ${getScoreProgressColor(score)} transition-all duration-1000`} style={{ width: `${score}%` }} />
-              </div>
+  if (!selectedUrl) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div>
+              <h3 className="text-xl font-display font-bold text-slate-800">Sampled Pages</h3>
+              <p className="text-xs text-slate-500 font-medium">Click on a page to view deep-audit intelligence</p>
             </div>
-
-            {/* Tabs Navigation */}
-            <div className="flex overflow-x-auto custom-scrollbar sticky top-0 bg-white z-10 border-b border-slate-100 px-2">
-              {TABS.map(tab => (
-                <button 
-                  key={tab.id}
-                  onClick={() => setTab(id, tab.id)} 
-                  className={`shrink-0 px-4 py-3 text-xs font-bold transition-colors border-b-2 whitespace-nowrap ${currentTab === tab.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+            <div className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest">
+              {pages.length} Pages Audited
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {pages.map((page, idx) => {
+              const score = getScoreValue(page?.seo_score ?? page?.seo_health ?? 0);
+              return (
+                <button
+                  key={page.url || idx}
+                  onClick={() => setSelectedUrl(page.url)}
+                  className="w-full px-8 py-5 flex items-center justify-between hover:bg-slate-50 transition-all group text-left"
                 >
-                  {tab.label}
+                  <div className="flex items-center gap-6 flex-1 min-w-0">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm ring-1 shadow-sm transition-transform group-hover:scale-110 ${getScoreColor(score)}`}>
+                      {score}%
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-slate-800 truncate mb-1 group-hover:text-indigo-600 transition-colors">
+                        {page.url}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{page.page_type || 'General Page'}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-200" />
+                        <span className="text-[10px] font-bold text-slate-500">{page?.content?.word_count ?? page?.word_count ?? 0} words</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {page.key_issue && (
+                      <span className="hidden md:block px-2.5 py-1 bg-rose-50 text-rose-600 text-[9px] font-black uppercase tracking-wider rounded-md border border-rose-100">
+                        {page.key_issue}
+                      </span>
+                    )}
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-            {/* Content Area */}
-            <div className={`p-6 flex-1 overflow-y-auto custom-scrollbar transition-all ${isExpanded ? 'max-h-[500px]' : 'max-h-[250px]'}`}>
-              {currentTab === 'overview' && (
-                <div className="space-y-4 text-sm text-slate-600">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p className="font-bold text-slate-800 mb-1">Title Tag</p>
-                    <p className="line-clamp-2">{titleTag}</p>
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setSelectedUrl(null)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all font-bold text-xs shadow-sm active:scale-95"
+        >
+          <ArrowRight className="w-4 h-4 rotate-180" /> Back to List
+        </button>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Currently Viewing</div>
+            <div className="text-sm font-bold text-slate-800">{selectedPage?.url}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8">
+        {selectedPage && (() => {
+          const id = selectedPage.url;
+          const isExpanded = true;
+          const currentTab = activeTabs[id] || 'overview';
+          const score = getScoreValue(selectedPage?.seo_score ?? selectedPage?.seo_health ?? 0);
+          const scoreLabel = getScoreLabel(score);
+
+          // Meta & Overview
+          const titleTag = selectedPage?.page_info?.title || selectedPage?.title || 'N/A';
+          const metaDesc = selectedPage?.page_info?.meta_description || selectedPage?.page_info?.metaDescription || selectedPage?.meta_description || 'Not Found';
+          const idxStatus = selectedPage?.page_info?.indexing_status || selectedPage?.indexing_status || selectedPage?.page_type || 'Unknown';
+          const canonicalUrl = selectedPage?.page_info?.canonical || selectedPage?.canonical_url || selectedPage?.url || 'N/A';
+
+          // Content
+          const contentQuality = selectedPage?.content?.quality || selectedPage?.content?.content_quality || selectedPage?.content?.quality_status || 'Not Analyzed';
+          const wordCount = selectedPage?.content?.word_count || selectedPage?.word_count || 0;
+          const keywordGaps = selectedPage?.content?.keyword_gaps || [];
+
+          // Performance
+          const mScoreRaw = selectedPage?.performance?.mobile?.score ?? selectedPage?.performance?.score;
+          const mobileScore = mScoreRaw != null ? mScoreRaw : 'Data Not Available';
+          const mScoreVal = getScoreValue(mobileScore);
+          
+          const dScoreRaw = selectedPage?.performance?.desktop?.score ?? selectedPage?.performance?.score;
+          const desktopScore = dScoreRaw != null ? dScoreRaw : 'Data Not Available';
+          const dScoreVal = getScoreValue(desktopScore);
+
+          const mobileLoad = selectedPage?.performance?.mobile?.load_time || selectedPage?.performance?.load_time || 'N/A';
+          const desktopLoad = selectedPage?.performance?.desktop?.load_time || selectedPage?.performance?.load_time || 'N/A';
+          
+          const mobileStatus = selectedPage?.performance?.mobile?.status || selectedPage?.performance?.status || 'Not Analyzed';
+          const desktopStatus = selectedPage?.performance?.desktop?.status || selectedPage?.performance?.status || 'Not Analyzed';
+
+          const perfIssues = selectedPage?.performance?.issues || [];
+
+          // Issues flattened
+          let allIssues: any[] = [];
+          if (Array.isArray(selectedPage?.issues)) {
+            allIssues = selectedPage?.issues;
+          } else if (selectedPage?.issues && typeof selectedPage?.issues === 'object') {
+            allIssues = [
+              ...(selectedPage.issues.critical || []),
+              ...(selectedPage.issues.high || []),
+              ...(selectedPage.issues.medium || []),
+              ...(selectedPage.issues.low || [])
+            ];
+          } else if (selectedPage?.key_issue) {
+            allIssues = [selectedPage.key_issue];
+          }
+
+          const allRecs = selectedPage?.recommendations || [];
+
+          return (
+            <div key={id} className="bg-white rounded-[1.5rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+              {/* Top Section */}
+              <div className="p-6 bg-slate-50/50 border-b border-slate-100">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1 pr-4 overflow-hidden">
+                    <h3 className="text-sm font-bold text-slate-800 truncate" title={selectedPage?.url}>{selectedPage?.url || 'Untitled Page'}</h3>
+                    {(selectedPage?.priority_action || selectedPage?.key_issue) && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-wider rounded-md border border-rose-100">
+                        <AlertCircle className="w-3 h-3" />
+                        Priority: {selectedPage?.priority_action || selectedPage?.key_issue}
+                      </div>
+                    )}
                   </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p className="font-bold text-slate-800 mb-1">Meta Description</p>
-                    <p className="line-clamp-3">{metaDesc}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800">Indexing Status:</span>
-                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${String(idxStatus).toLowerCase().includes('noindex') ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {idxStatus}
-                    </span>
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    <div className={`px-4 py-1.5 rounded-full text-sm font-black ring-1 shadow-sm ${getScoreColor(score)}`}>
+                      {score}%
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{scoreLabel}</span>
                   </div>
                 </div>
-              )}
+                
+                <div className="w-full bg-slate-200 rounded-full h-1.5">
+                  <div className={`h-1.5 rounded-full ${getScoreProgressColor(score)} transition-all duration-1000`} style={{ width: `${score}%` }} />
+                </div>
+              </div>
 
-              {currentTab === 'performance' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    {/* Performance Component */}
-                    {[
-                      { type: 'mobile', icon: Smartphone, label: 'Mobile Performance', data: page?.performance?.mobile, score: mScoreVal },
-                      { type: 'desktop', icon: Monitor, label: 'Desktop Performance', data: page?.performance?.desktop, score: dScoreVal }
-                    ].map((device) => (
-                      <div key={device.type} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden flex flex-col group">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform">
-                              <device.icon className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h4 className="font-display font-bold text-slate-800 text-base">{device.label}</h4>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{getScoreLabel(device.score)}</p>
-                            </div>
-                          </div>
-                          <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 ${
-                            device.score >= 90 ? 'bg-emerald-50 border-emerald-500 text-emerald-600' :
-                            device.score >= 50 ? 'bg-amber-50 border-amber-500 text-amber-600' :
-                            'bg-rose-50 border-rose-500 text-rose-600'
-                          }`}>
-                            <span className="text-lg font-black leading-none">{device.score}</span>
-                            <span className="text-[8px] font-bold uppercase">Score</span>
-                          </div>
-                        </div>
+              {/* Tabs Navigation */}
+              <div className="flex overflow-x-auto custom-scrollbar sticky top-0 bg-white z-10 border-b border-slate-100 px-2">
+                {TABS.map(tab => (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setTab(id, tab.id)} 
+                    className={`shrink-0 px-4 py-3 text-xs font-bold transition-colors border-b-2 whitespace-nowrap ${currentTab === tab.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                        <div className="grid grid-cols-3 gap-3 mb-6">
-                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">Load Time</p>
-                            <p className="text-sm font-bold text-slate-800">{device.data?.load_time || 'N/A'}</p>
-                          </div>
-                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 col-span-2">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">Network Status</p>
-                            <p className="text-sm font-bold text-slate-800 capitalize flex items-center gap-2">
-                              <div className={`w-1.5 h-1.5 rounded-full ${
-                                device.data?.status === 'Fast' ? 'bg-emerald-500' : 
-                                device.data?.status === 'Moderate' ? 'bg-amber-500' : 'bg-rose-500'
-                              }`} />
-                              {device.data?.status || 'Unknown'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4 pt-4 border-t border-slate-100">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-slate-500 uppercase">Core Web Vitals</span>
-                            <Info className="w-3 h-3 text-slate-300" />
-                          </div>
-                          <div className="grid grid-cols-3 gap-4">
-                            {[
-                              { label: 'LCP', val: device.data?.core_web_vitals?.lcp || '2.5s', status: 'Good' },
-                              { label: 'CLS', val: device.data?.core_web_vitals?.cls || '0.1', status: 'Needs Imp.' },
-                              { label: 'FID', val: device.data?.core_web_vitals?.fid || '100ms', status: 'Good' }
-                            ].map(v => (
-                              <div key={v.label} className="text-center">
-                                <div className="text-[11px] font-black text-slate-800">{v.val}</div>
-                                <div className="text-[8px] font-bold text-slate-400 uppercase mb-1">{v.label}</div>
-                                <div className={`h-1 rounded-full ${v.status === 'Good' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+              {/* Content Area */}
+              <div className={`p-6 flex-1 overflow-y-auto custom-scrollbar transition-all ${isExpanded ? 'max-h-[700px]' : 'max-h-[250px]'}`}>
+                {currentTab === 'overview' && (
+                  <div className="space-y-4 text-sm text-slate-600">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <p className="font-bold text-slate-800 mb-1">Title Tag <HelpTooltip text="The title of the page as it appears in search engine results and browser tabs. It is a critical SEO factor." /></p>
+                      <p className="line-clamp-2">{titleTag}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <p className="font-bold text-slate-800 mb-1">Meta Description <HelpTooltip text="A brief summary of the page's content. While not a direct ranking factor, it influences whether users click on your link in search results." /></p>
+                      <p className="line-clamp-3">{metaDesc}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <p className="font-bold text-slate-800 mb-1">Canonical URL <HelpTooltip text="The preferred version of a page. If multiple URLs have similar content, the canonical tag tells search engines which one to index to avoid duplicate content penalties." /></p>
+                      <p className="line-clamp-1 truncate text-xs font-mono text-slate-500">{canonicalUrl}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800">Indexing Status:</span>
+                      <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${String(idxStatus).toLowerCase().includes('noindex') ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {idxStatus}
+                      </span>
+                      <HelpTooltip text="Tells you if search engines like Google are allowed to include this page in their index and show it in search results." />
+                    </div>
                   </div>
+                )}
 
-                  {/* Combined Issues */}
-                  <div className="bg-slate-900 rounded-[2rem] p-6 text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
-                    <h5 className="font-display font-bold text-lg mb-4 flex items-center gap-2 relative z-10">
-                      <Zap className="w-5 h-5 text-indigo-400" /> performance optimization
-                    </h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
-                      {(perfIssues.length > 0 ? perfIssues : [
-                        "Large image assets detected without WebP compression.",
-                        "Unused JavaScript in the critical render path.",
-                        "Render-blocking CSS preventing early paint."
-                      ]).map((iss: string, i: number) => (
-                        <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-start gap-3">
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                          <span className="text-[11px] font-bold text-slate-200 leading-relaxed">{iss}</span>
+                {currentTab === 'performance' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      {/* Performance Component */}
+                      {[
+                        { type: 'mobile', icon: Smartphone, label: 'Mobile Performance', data: selectedPage?.performance?.mobile, score: mScoreVal },
+                        { type: 'desktop', icon: Monitor, label: 'Desktop Performance', data: selectedPage?.performance?.desktop, score: dScoreVal }
+                      ].map((device) => (
+                        <div key={device.type} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden flex flex-col group">
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform">
+                                <device.icon className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="font-display font-bold text-slate-800 text-base">{device.label}</h4>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                  {getScoreLabel(device.score)}
+                                  <HelpTooltip text="An overall performance score calculated based on several speed and responsiveness metrics. 90+ is considered excellent." />
+                                </p>
+                              </div>
+                            </div>
+                            <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 ${
+                              device.score >= 90 ? 'bg-emerald-50 border-emerald-500 text-emerald-600' :
+                              device.score >= 50 ? 'bg-amber-50 border-amber-500 text-amber-600' :
+                              'bg-rose-50 border-rose-500 text-rose-600'
+                            }`}>
+                              <span className="text-lg font-black leading-none">{device.score}</span>
+                              <span className="text-[8px] font-bold uppercase">Score</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-3 mb-6">
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">Load Time</p>
+                              <p className="text-sm font-bold text-slate-800">{device.data?.load_time || 'N/A'}</p>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 col-span-2">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">Network Status</p>
+                              <p className="text-sm font-bold text-slate-800 capitalize flex items-center gap-2">
+                                <div className={`w-1.5 h-1.5 rounded-full ${
+                                  device.data?.status === 'Fast' ? 'bg-emerald-500' : 
+                                  device.data?.status === 'Moderate' ? 'bg-amber-500' : 'bg-rose-500'
+                                }`} />
+                                {device.data?.status || 'Unknown'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4 pt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black text-slate-500 uppercase">Core Web Vitals</span>
+                              <Info className="w-3 h-3 text-slate-300" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                              {[
+                                 { label: 'LCP', val: device.data?.core_web_vitals?.lcp || '2.5s', status: 'Good', hint: 'Largest Contentful Paint: Measures how long it takes for the main content to load. Aim for 2.5s or less.' },
+                                 { label: 'CLS', val: device.data?.core_web_vitals?.cls || '0.1', status: 'Needs Imp.', hint: 'Cumulative Layout Shift: Measures visual stability. A lower score means elements don\'t jump around while loading.' },
+                                 { label: 'FID', val: device.data?.core_web_vitals?.fid || '100ms', status: 'Good', hint: 'First Input Delay: Measures the time from when a user first interacts with your site to when the browser responds.' }
+                               ].map(v => (
+                                 <div key={v.label} className="text-center group/v">
+                                   <div className="text-[11px] font-black text-slate-800">{v.val}</div>
+                                   <div className="text-[8px] font-bold text-slate-400 uppercase mb-1 flex items-center justify-center gap-0.5">
+                                     {v.label}
+                                     <HelpTooltip text={v.hint} />
+                                   </div>
+                                   <div className={`h-1 rounded-full ${v.status === 'Good' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                 </div>
+                               ))}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {currentTab === 'headings' && (
-                <div className="space-y-4 text-sm text-slate-600">
-                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                    <p className="font-bold text-indigo-900 mb-1">H1 Tag ({page?.headings?.h1_count || 0})</p>
-                    <p className="text-indigo-800 italic">{page?.headings?.h1_content || 'Missing H1'}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">H2 Count</p>
-                      <p className="text-xl font-black text-slate-800">{page?.headings?.h2_count || 0}</p>
-                    </div>
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">H3 Count</p>
-                      <p className="text-xl font-black text-slate-800">{page?.headings?.h3_count || 0}</p>
-                    </div>
-                  </div>
-                  {page?.headings?.warnings && page.headings.warnings.length > 0 && (
-                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-amber-800">
-                      <p className="font-bold mb-2">Structure Warnings:</p>
-                      <ul className="list-disc pl-4 space-y-1 text-xs">
-                        {page.headings.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {currentTab === 'content' && (
-                <div className="space-y-4 text-sm text-slate-600">
-                  <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <span className="font-bold text-slate-800">Word Count:</span>
-                    <span className="font-black text-indigo-600 text-lg">{wordCount}</span>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <span className="font-bold text-slate-800 block mb-1">Quality Status:</span>
-                    <span className="text-slate-600">{contentQuality}</span>
-                  </div>
-                  {keywordGaps.length > 0 && (
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                      <span className="font-bold text-slate-800 block mb-2">Keyword Gaps:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {keywordGaps.map((kg: string, i: number) => (
-                          <span key={i} className="bg-white border border-slate-200 px-2 py-1 rounded text-[10px] font-black uppercase text-slate-500 shadow-sm">{kg}</span>
+                    {/* Combined Issues */}
+                    <div className="bg-slate-900 rounded-[2rem] p-6 text-white relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+                      <h5 className="font-display font-bold text-lg mb-4 flex items-center gap-2 relative z-10">
+                        <Zap className="w-5 h-5 text-indigo-400" /> performance optimization
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
+                        {(perfIssues.length > 0 ? perfIssues : [
+                          "Large image assets detected without WebP compression.",
+                          "Unused JavaScript in the critical render path.",
+                          "Render-blocking CSS preventing early paint."
+                        ]).map((iss: string, i: number) => (
+                          <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-start gap-3">
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                            <span className="text-[11px] font-bold text-slate-200 leading-relaxed">{iss}</span>
+                          </div>
                         ))}
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {currentTab === 'technical' && (
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="font-bold text-slate-700">Mobile Friendly</span>
-                    {page?.technical_seo?.mobile_friendly !== false ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <AlertCircle className="w-5 h-5 text-rose-500" />}
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="font-bold text-slate-700">HTTPS Secure</span>
-                    {page?.technical_seo?.https !== false ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <AlertCircle className="w-5 h-5 text-rose-500" />}
-                  </div>
-                  {page?.technical_seo?.broken_links && page.technical_seo.broken_links.length > 0 && (
-                    <div className="p-4 rounded-lg bg-rose-50 border border-rose-100">
-                      <p className="font-bold text-rose-800 mb-2">Broken Links ({page.technical_seo.broken_links.length}):</p>
-                      <ul className="text-xs text-rose-700 list-disc pl-4 space-y-1">
-                        {page.technical_seo.broken_links.map((bl: string, i: number) => <li key={i}>{bl}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {page?.technical_seo?.crawl_issues && page.technical_seo.crawl_issues.length > 0 && (
-                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-100">
-                      <p className="font-bold text-amber-800 mb-2">Crawl Issues:</p>
-                      <ul className="text-xs text-amber-700 list-disc pl-4 space-y-1">
-                        {page.technical_seo.crawl_issues.map((ci: string, i: number) => <li key={i}>{ci}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
 
-              {currentTab === 'issues' && (
-                <div className="space-y-4">
-                  {allIssues.length > 0 ? (
-                    allIssues.map((iss: any, i: number) => (
-                      <div key={i} className="flex items-start gap-3 text-xs bg-rose-50 p-3 rounded-xl border border-rose-100">
-                        <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                        <span className="text-rose-700 font-medium leading-relaxed">{typeof iss === 'string' ? iss : iss.description || JSON.stringify(iss)}</span>
+                {currentTab === 'headings' && (
+                  <div className="space-y-4 text-sm text-slate-600">
+                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                      <p className="font-bold text-indigo-900 mb-1">
+                        H1 Tag ({selectedPage?.headings?.h1_count || 0})
+                        <HelpTooltip text="The main heading of a page. Each page should have exactly one H1 tag that describes what the page is about." />
+                      </p>
+                      <p className="text-indigo-800 italic">{selectedPage?.headings?.h1_content || 'Missing H1'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                          H2 Count <HelpTooltip text="Secondary headings used to organize content. Good for both users and search engines." />
+                        </p>
+                        <p className="text-xl font-black text-slate-800">{selectedPage?.headings?.h2_count || 0}</p>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-slate-400 italic text-center py-8">No issues detected.</div>
-                  )}
-                </div>
-              )}
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                          H3 Count <HelpTooltip text="Sub-headings used within H2 sections to further structure your content." />
+                        </p>
+                        <p className="text-xl font-black text-slate-800">{selectedPage?.headings?.h3_count || 0}</p>
+                      </div>
+                    </div>
+                    {selectedPage?.headings?.warnings && selectedPage.headings.warnings.length > 0 && (
+                      <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-amber-800">
+                        <p className="font-bold mb-2">Structure Warnings:</p>
+                        <ul className="list-disc pl-4 space-y-1 text-xs">
+                          {selectedPage.headings.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {currentTab === 'recommendations' && (
-                <div className="space-y-3">
-                  {allRecs.length > 0 ? (
-                    <ul className="space-y-2">
-                      {allRecs.map((rec: any, i: number) => (
-                        <li key={i} className="flex items-start gap-3 text-xs text-slate-700 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/50 shadow-sm">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                          <span className="font-medium leading-relaxed">{typeof rec === 'string' ? rec : rec.description || JSON.stringify(rec)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-sm text-slate-400 italic text-center py-8">No recommendations available.</div>
-                  )}
-                </div>
-              )}
-            </div>
+                {currentTab === 'content' && (
+                  <div className="space-y-4 text-sm text-slate-600">
+                    <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <span className="font-bold text-slate-800">
+                        Word Count:
+                        <HelpTooltip text="The total number of words on the page. Generally, more content provides more value and signals authority to search engines." />
+                      </span>
+                      <span className="font-black text-indigo-600 text-lg">{wordCount}</span>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <span className="font-bold text-slate-800 block mb-1">
+                        Quality Status:
+                        <HelpTooltip text="An AI assessment of how useful and well-written the content on this page is." />
+                      </span>
+                      <span className="text-slate-600">{contentQuality}</span>
+                    </div>
+                    {keywordGaps.length > 0 && (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <span className="font-bold text-slate-800 block mb-2">Keyword Gaps:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {keywordGaps.map((kg: string, i: number) => (
+                            <span key={i} className="bg-white border border-slate-200 px-2 py-1 rounded text-[10px] font-black uppercase text-slate-500 shadow-sm">{kg}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-            {/* Expand Toggle */}
-            <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-center">
-              <button 
-                onClick={() => toggleExpand(id)} 
-                className="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors flex items-center gap-1 py-1 px-4 rounded-full hover:bg-indigo-100/50"
-              >
-                {isExpanded ? 'Collapse Details' : 'Expand Details'}
-              </button>
+                {currentTab === 'technical' && (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
+                      <span className="font-bold text-slate-700">
+                        Mobile Friendly
+                        <HelpTooltip text="Indicates whether the page is easy to use on mobile devices. Essential for modern SEO." />
+                      </span>
+                      {selectedPage?.technical_seo?.mobile_friendly !== false ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <AlertCircle className="w-5 h-5 text-rose-500" />}
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
+                      <span className="font-bold text-slate-700">
+                        HTTPS Secure
+                        <HelpTooltip text="Shows if the connection to this page is encrypted and secure. A standard requirement for trust and ranking." />
+                      </span>
+                      {selectedPage?.technical_seo?.https !== false ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <AlertCircle className="w-5 h-5 text-rose-500" />}
+                    </div>
+                    {selectedPage?.technical_seo?.broken_links && selectedPage.technical_seo.broken_links.length > 0 && (
+                      <div className="p-4 rounded-lg bg-rose-50 border border-rose-100">
+                        <p className="font-bold text-rose-800 mb-2">Broken Links ({selectedPage.technical_seo.broken_links.length}):</p>
+                        <ul className="text-xs text-rose-700 list-disc pl-4 space-y-1">
+                          {selectedPage.technical_seo.broken_links.map((bl: string, i: number) => <li key={i}>{bl}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {selectedPage?.technical_seo?.crawl_issues && selectedPage.technical_seo.crawl_issues.length > 0 && (
+                      <div className="p-4 rounded-lg bg-amber-50 border border-amber-100">
+                        <p className="font-bold text-amber-800 mb-2">Crawl Issues:</p>
+                        <ul className="text-xs text-amber-700 list-disc pl-4 space-y-1">
+                          {selectedPage.technical_seo.crawl_issues.map((ci: string, i: number) => <li key={i}>{ci}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentTab === 'issues' && (
+                  <div className="space-y-4">
+                    {allIssues.length > 0 ? (
+                      allIssues.map((iss: any, i: number) => (
+                        <div key={i} className="flex items-start gap-3 text-xs bg-rose-50 p-3 rounded-xl border border-rose-100">
+                          <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                          <span className="text-rose-700 font-medium leading-relaxed">{typeof iss === 'string' ? iss : iss.description || JSON.stringify(iss)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-slate-400 italic text-center py-8">No issues detected.</div>
+                    )}
+                  </div>
+                )}
+
+                {currentTab === 'recommendations' && (
+                  <div className="space-y-3">
+                    {allRecs.length > 0 ? (
+                      <ul className="space-y-2">
+                        {allRecs.map((rec: any, i: number) => (
+                          <li key={i} className="flex items-start gap-3 text-xs text-slate-700 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/50 shadow-sm">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                            <span className="font-medium leading-relaxed">{typeof rec === 'string' ? rec : rec.description || JSON.stringify(rec)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-sm text-slate-400 italic text-center py-8">No recommendations available.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* No Expand Toggle in Single View */}
             </div>
-          </div>
-        );
-      })}
+          );
+        })()}
+      </div>
     </div>
   );
 };
 
+import { useProjects } from '../context/ProjectContext';
+
 export default function SEOStudio() {
-  const [activeTab, setActiveTab] = useState('summary');
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [targetUrl, setTargetUrl] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [auditResult, setAuditResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const { 
+    projects, 
+    auditResult, 
+    isAnalyzing, 
+    error, 
+    startAudit, 
+    resetAudit, 
+    loadProject,
+    isShareModalOpen,
+    setIsShareModalOpen,
+    isGeneratingPDF,
+    setIsGeneratingPDF,
+    targetUrl,
+    setTargetUrl,
+    activeSection: activeTab,
+    setActiveSection: setActiveTab
+  } = useProjects();
+
+  const { section } = useParams<{ section?: string }>();
+  const navigate = useNavigate();
+
+  // Sync URL slug → active section (handles direct URL entry & browser back/forward)
+  const VALID_SECTIONS = ['summary', 'technical', 'performance', 'growth', 'appendix'];
+  useEffect(() => {
+    const slug = section?.toLowerCase();
+    if (slug && VALID_SECTIONS.includes(slug)) {
+      setActiveTab(slug);
+    } else if (!slug) {
+      // At / root, ensure summary is shown
+      setActiveTab('summary');
+    }
+  }, [section]);
 
   const dynamicFixes = useMemo(() => {
     if (!auditResult?.crawl_overview?.sampled_pages) return { titles: [], meta: [], urls: [] };
@@ -1662,158 +1778,16 @@ export default function SEOStudio() {
     }
   }, [auditResult]);
 
-  const fetchProjects = async () => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/projects`);
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch project history:', err);
-    }
-  };
-
-  const loadProject = async (projectId: string) => {
-    setIsAnalyzing(true);
-    setError(null);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/projects/${projectId}`);
-      if (!response.ok) throw new Error('Failed to load project details');
-      const data = await response.json();
-      setAuditResult(data);
-      setTargetUrl(data?.pdf_template_data?.website || '');
-      setActiveTab('summary');
-      setIsMobileSidebarOpen(false);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProjects();
-  }, []);
-
-  const reportRef = useRef<HTMLDivElement>(null);
-
-  // If no audit has been performed yet, we'll show a landing page
-  // instead of the dashboard with mock data.
-  const isDashboardActive = !!auditResult;
-  const currentData = auditResult;
-
-  useEffect(() => {
-    if (currentData) {
-      console.log('Site Identity Payload:', currentData.site_favicon);
-      console.log('Core Performance Payload:', currentData.page_speed);
-    }
-  }, [currentData]);
-
   const handleStartAudit = async (url: string) => {
-    if (!url) return;
-    console.log("Form submitted - Starting audit for:", url);
-
-    // Normalize URL
-    let finalUrl = url.trim();
-    if (!finalUrl.startsWith('http')) {
-      finalUrl = 'https://' + finalUrl;
-    }
-
-    setIsAnalyzing(true);
-    setError(null);
-
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/analyze-url`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: finalUrl }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || 'Failed to analyze URL');
-      }
-
-      const result = await response.json();
-      console.log("Audit data received successfully:", result);
-      setAuditResult(result);
-      setActiveTab('summary');
-      fetchProjects(); // Refresh project list after new audit
-    } catch (err: any) {
-      console.error('Audit failed:', err);
-      setError(err.message);
-    } finally {
-      setIsAnalyzing(false);
-    }
+    await startAudit(url);
   };
 
   const handleResetAudit = () => {
-    setAuditResult(null);
-    setTargetUrl('');
-    setError(null);
+    resetAudit();
   };
 
-  const reportUrl = typeof window !== 'undefined' ? window.location.href : targetUrl || 'https://audit.ai';
-
-  const tabs = [
-    { id: 'summary', label: 'Summary', icon: FileText },
-    { id: 'technical', label: 'Technical', icon: Cpu },
-    { id: 'growth', label: 'Growth', icon: TrendingUp },
-    { id: 'performance', label: 'Performance', icon: Zap },
-    { id: 'appendix', label: 'Appendix', icon: BookOpen },
-  ];
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(reportUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!reportRef.current) return;
-    setIsGeneratingPDF(true);
-
-    try {
-      const element = reportRef.current;
-      const imgData = await toPng(element, {
-        pixelRatio: 2,
-        backgroundColor: '#F8FAFC',
-        filter: (node) => {
-          // Keep ignoring elements with the data attribute (like YouTube previews)
-          if (node.hasAttribute && node.hasAttribute('data-html2canvas-ignore')) {
-            return false;
-          }
-          return true;
-        }
-      });
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`SEO_Audit_Report_${currentData?.pdf_template_data?.company_name || 'Organization'}.pdf`);
-    } catch (error: any) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Error: ' + (error?.message || error));
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  };
-
-  const shareOptions = useMemo(() => [
-    { name: 'Twitter', icon: Twitter, color: 'bg-[#1DA1F2]', url: `https://twitter.com/intent/tweet?url=${encodeURIComponent(reportUrl)}&text=${encodeURIComponent('Check out this SEO Audit Report!')}` },
-    { name: 'LinkedIn', icon: Linkedin, color: 'bg-[#0077b5]', url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(reportUrl)}` },
-    { name: 'Facebook', icon: Facebook, color: 'bg-[#1877F2]', url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(reportUrl)}` },
-    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-[#25D366]', url: `https://wa.me/?text=${encodeURIComponent('Check out this SEO Audit Report: ' + reportUrl)}` },
-    { name: 'Instagram', icon: Instagram, color: 'bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]', url: 'https://instagram.com' },
-  ], [reportUrl]);
+  const isDashboardActive = !!auditResult;
+  const currentData = auditResult;
 
   const performanceChartData = useMemo(() => [
     {
@@ -1845,188 +1819,75 @@ export default function SEOStudio() {
     }
   ], [currentData]);
 
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (currentData) {
+      console.log('Site Identity Payload:', currentData.site_favicon);
+      console.log('Core Performance Payload:', currentData.page_speed);
+    }
+  }, [currentData]);
+
+  const reportUrl = typeof window !== 'undefined' ? window.location.href : targetUrl || 'https://audit.ai';
+
+  const tabs = [
+    { id: 'summary', label: 'Summary', icon: FileText },
+    { id: 'technical', label: 'Technical', icon: Cpu },
+    { id: 'growth', label: 'Growth', icon: TrendingUp },
+    { id: 'performance', label: 'Performance', icon: Zap },
+    { id: 'appendix', label: 'Appendix', icon: BookOpen },
+  ];
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(reportUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) return;
+    setIsGeneratingPDF(true);
+
+    try {
+      const element = reportRef.current;
+      const imgData = await toPng(element, {
+        pixelRatio: 2,
+        backgroundColor: '#F8FAFC',
+        filter: (node) => {
+          if (node.hasAttribute && node.hasAttribute('data-html2canvas-ignore')) {
+            return false;
+          }
+          return true;
+        }
+      });
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`SEO_Audit_Report_${currentData?.pdf_template_data?.company_name || 'Organization'}.pdf`);
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Error: ' + (error?.message || error));
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const shareOptions = useMemo(() => [
+    { name: 'Twitter', icon: Twitter, color: 'bg-[#1DA1F2]', url: `https://twitter.com/intent/tweet?url=${encodeURIComponent(reportUrl)}&text=${encodeURIComponent('Check out this SEO Audit Report!')}` },
+    { name: 'LinkedIn', icon: Linkedin, color: 'bg-[#0077b5]', url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(reportUrl)}` },
+    { name: 'Facebook', icon: Facebook, color: 'bg-[#1877F2]', url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(reportUrl)}` },
+    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-[#25D366]', url: `https://wa.me/?text=${encodeURIComponent('Check out this SEO Audit Report: ' + reportUrl)}` },
+    { name: 'Instagram', icon: Instagram, color: 'bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]', url: 'https://instagram.com' },
+  ], [reportUrl]);
+
   return (
     <div className="flex min-h-screen bg-[#F8FAFC] text-slate-900 selection:bg-indigo-100">
-      {/* Sidebar - Desktop */}
-      <aside
-        className={`fixed left-0 top-0 bottom-0 z-50 bg-slate-900 text-white transition-all duration-300 ease-in-out hidden md:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}
-      >
-        <div className="p-6 flex items-center justify-between">
-          {!isSidebarCollapsed && (
-            <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap">
-              <ShieldCheck className="w-6 h-6 text-indigo-400 shrink-0" />
-              <span className="font-display font-bold text-lg tracking-tight">AuditIntelligence</span>
-            </div>
-          )}
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className={`p-2 hover:bg-white/10 rounded-lg transition-colors ${isSidebarCollapsed ? 'mx-auto' : ''}`}
-          >
-            {isSidebarCollapsed ? <PanelLeftOpen className="w-5 h-5 text-slate-400" /> : <PanelLeftClose className="w-5 h-5 text-slate-400" />}
-          </button>
-        </div>
-
-        <div className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-bold transition-all group ${activeTab === tab.id
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                }`}
-            >
-              <tab.icon className={`w-5 h-5 shrink-0 transition-transform ${activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'}`} />
-              {!isSidebarCollapsed && <span className="text-sm truncate">{tab.label}</span>}
-            </button>
-          ))}
-
-          {!isSidebarCollapsed && projects.length > 0 && (
-            <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
-              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-3">Audit History</h4>
-              <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-2">
-                {projects.slice(0, 5).map((proj) => (
-                  <button
-                    key={proj.id}
-                    onClick={() => loadProject(proj.id)}
-                    className="w-full flex flex-col items-start px-3 py-2 rounded-lg hover:bg-white/5 transition-all group"
-                  >
-                    <span className="text-[11px] font-bold text-slate-300 truncate w-full group-hover:text-white transition-colors">{proj.url.replace(/^https?:\/\//, '')}</span>
-                    <span className="text-[9px] text-slate-500 font-medium">{new Date(proj.created_at).toLocaleDateString()}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="p-4 border-t border-white/5 space-y-2">
-          {isDashboardActive && (
-            <button
-              onClick={handleResetAudit}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-rose-400 hover:bg-rose-400/10 font-bold transition-all"
-            >
-              <RefreshCw className="w-5 h-5 shrink-0" />
-              {!isSidebarCollapsed && <span className="text-sm">New Audit</span>}
-            </button>
-          )}
-          {!isSidebarCollapsed && isDashboardActive && (
-            <button
-              onClick={() => setIsShareModalOpen(true)}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white font-bold transition-all overflow-hidden whitespace-nowrap"
-            >
-              <Share2 className="w-5 h-5 shrink-0" />
-              <span className="text-sm">Share Report</span>
-            </button>
-          )}
-          {isDashboardActive && (
-            <button
-              onClick={handleDownloadPDF}
-              disabled={isGeneratingPDF}
-              className={`w-full flex items-center gap-3 px-3 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5 ${isSidebarCollapsed ? 'justify-center' : ''} ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Download className={`w-5 h-5 shrink-0 text-indigo-400 ${isGeneratingPDF ? 'animate-bounce' : ''}`} />
-              {!isSidebarCollapsed && <span className="text-sm font-bold">{isGeneratingPDF ? 'Generating...' : 'PDF Report'}</span>}
-            </button>
-          )}
-        </div>
-      </aside>
-
-      {/* Sidebar - Mobile Overlay */}
-      <AnimatePresence>
-        {isMobileSidebarOpen && (
-          <div className="fixed inset-0 z-[100] md:hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileSidebarOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute left-0 top-0 bottom-0 w-72 bg-slate-900 text-white flex flex-col"
-            >
-              <div className="p-6 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-6 h-6 text-indigo-400" />
-                  <span className="font-display font-bold text-lg tracking-tight">AuditIntelligence</span>
-                </div>
-                <button
-                  onClick={() => setIsMobileSidebarOpen(false)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-              <div className="flex-1 px-3 py-4 space-y-2">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setIsMobileSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-bold transition-all ${activeTab === tab.id
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                      }`}
-                  >
-                    <tab.icon className="w-5 h-5" />
-                    <span className="text-sm">{tab.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {projects.length > 0 && (
-                <div className="px-6 py-4 border-t border-white/5 space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-slate-500">Audit History</h4>
-                  <div className="space-y-2">
-                    {projects.slice(0, 5).map((proj) => (
-                      <button
-                        key={proj.id}
-                        onClick={() => loadProject(proj.id)}
-                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/5"
-                      >
-                        <div className="flex flex-col items-start">
-                          <span className="text-xs font-bold text-white truncate max-w-[180px]">{proj.url.replace(/^https?:\/\//, '')}</span>
-                          <span className="text-[10px] text-slate-500 font-medium">{new Date(proj.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <ArrowRight className="w-4 h-4 text-slate-500" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="p-4 border-t border-white/5 space-y-2">
-                <button
-                  onClick={() => setIsShareModalOpen(true)}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white font-bold transition-all"
-                >
-                  <Share2 className="w-5 h-5" />
-                  <span className="text-sm">Share Report</span>
-                </button>
-                <button
-                  onClick={handleDownloadPDF}
-                  disabled={isGeneratingPDF}
-                  className="w-full flex items-center gap-3 px-3 py-3 bg-white/5 rounded-xl border border-white/5"
-                >
-                  <Download className={`w-5 h-5 text-indigo-400 ${isGeneratingPDF ? 'animate-bounce' : ''}`} />
-                  <span className="text-sm font-bold">{isGeneratingPDF ? 'Generating...' : 'PDF Report'}</span>
-                </button>
-              </div>
-            </motion.aside>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'md:pl-20' : 'md:pl-64'}`}>
+      <div className="flex-1 flex flex-col">
         {!isDashboardActive ? (
           <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50 relative overflow-hidden">
-            {/* Background elements */}
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-100 rounded-full blur-[120px] -mr-40 -mt-40 opacity-60" />
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-rose-100 rounded-full blur-[120px] -ml-40 -mb-40 opacity-60" />
 
@@ -2138,20 +1999,6 @@ export default function SEOStudio() {
               </div>
             ) : (currentData ? (
           <>
-            {/* Mobile Header */}
-            <header className="md:hidden sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-6 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-6 h-6 text-indigo-600" />
-                <span className="font-display font-bold text-lg text-slate-800 tracking-tight">AuditIntelligence</span>
-              </div>
-              <button
-                onClick={() => setIsMobileSidebarOpen(true)}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
-              >
-                <Menu className="w-5 h-5 text-slate-600" />
-              </button>
-            </header>
-
             <AnimatePresence>
               {isShareModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -2300,167 +2147,171 @@ export default function SEOStudio() {
                       </div>
                     </div>
 
-                    {/* Website Identity & Core Performance Section */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                      {/* Website Identity Card */}
-                      <div className="lg:col-span-4 bg-white border border-slate-200 p-8 rounded-[3rem] shadow-sm relative overflow-hidden flex flex-col items-center justify-center text-center group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 blur-2xl opacity-50 group-hover:bg-indigo-50 transition-colors" />
-                        <div className="relative mb-6">
-                          <div className="w-24 h-24 bg-white rounded-[2rem] border-2 border-slate-100 shadow-xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-110">
-                            {currentData?.site_favicon?.url ? (
-                              <img 
-                                src={currentData.site_favicon.url} 
-                                alt="Site Favicon" 
-                                className="w-12 h-12 object-contain" 
-                                onError={(e) => { (e.target as any).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5NDkzYjgiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Z2xvYmUvPjwvc3ZnPg=='; }}
-                              />
-                            ) : (
-                              <Globe className="w-10 h-10 text-slate-300" />
-                            )}
-                          </div>
-                          <div className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center shadow-lg ${currentData?.site_favicon?.status === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                            {currentData?.site_favicon?.status === 'Present' ? <Check className="w-5 h-5 text-white" /> : <X className="w-5 h-5 text-white" />}
-                          </div>
-                        </div>
-                        <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">Website Identity</h3>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">Site-Wide Branding Check</p>
-                        <div className="flex flex-col items-center gap-3 w-full">
-                          <span className={`w-full py-2 rounded-xl text-xs font-black uppercase tracking-widest border ${currentData?.site_favicon?.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                            {currentData?.site_favicon?.status || 'Missing'}
-                          </span>
-                          {currentData?.site_favicon?.status !== 'Present' && (
-                            <p className="text-[10px] font-bold text-rose-500 bg-rose-50 p-3 rounded-xl border border-rose-100">
-                              No favicon detected → impacts branding and UX
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Performance Comparison Card */}
-                      <div className="lg:col-span-8 bg-slate-900 p-8 rounded-[3rem] shadow-2xl relative overflow-hidden text-white flex flex-col justify-center">
-                        <div className="absolute bottom-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mb-32" />
-                        <div className="flex items-center justify-between mb-10 relative z-10">
-                          <div>
-                            <h3 className="text-2xl font-display font-bold mb-1">Performance Benchmarks</h3>
-                            <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Global Speed Evaluation</p>
-                          </div>
-                          <Zap className="w-8 h-8 text-indigo-400 animate-pulse" />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-                          {[
-                            { type: 'mobile', icon: Smartphone, label: 'Mobile Experience', data: currentData?.page_speed?.mobile },
-                            { type: 'desktop', icon: Monitor, label: 'Desktop Experience', data: currentData?.page_speed?.desktop }
-                          ].map((perf) => {
-                            const score = perf.data?.score || 0;
-                            const status = perf.data?.status || 'Not Available';
-                            const label = getScoreLabel(score);
-                            const color = score >= 90 ? 'text-emerald-400' : score >= 70 ? 'text-amber-400' : 'text-rose-400';
-                            const bgColor = score >= 90 ? 'bg-emerald-400' : score >= 70 ? 'bg-amber-400' : 'bg-rose-400';
-
-                            return (
-                              <div key={perf.type} className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 transition-all group">
-                                <div className="flex items-center justify-between mb-6">
-                                  <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-white/5 rounded-xl group-hover:bg-indigo-500/20 transition-colors">
-                                      <perf.icon className="w-5 h-5 text-indigo-400" />
-                                    </div>
-                                    <span className="text-xs font-black uppercase tracking-widest">{perf.label}</span>
-                                  </div>
-                                  <div className={`text-2xl font-display font-black ${color}`}>{score}%</div>
-                                </div>
-                                <div className="space-y-4">
-                                  <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                    <motion.div 
-                                      initial={{ width: 0 }}
-                                      animate={{ width: `${score}%` }}
-                                      transition={{ duration: 1, delay: 0.5 }}
-                                      className={`h-full ${bgColor}`} 
-                                    />
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex flex-col">
-                                      <span className="text-[9px] font-black text-slate-500 uppercase">Load Time</span>
-                                      <span className="text-sm font-bold text-slate-200">{perf.data?.load_time || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex flex-col items-end text-right">
-                                      <span className="text-[9px] font-black text-slate-500 uppercase">Verdict</span>
-                                      <span className={`text-sm font-black uppercase italic ${color}`}>{label}</span>
-                                    </div>
-                                  </div>
-                                </div>
+                    {isDashboardActive && currentData && (
+                      <>
+                        {/* Website Identity & Core Performance Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                          {/* Website Identity Card */}
+                          <div className="lg:col-span-4 bg-white border border-slate-200 p-8 rounded-[3rem] shadow-sm relative overflow-hidden flex flex-col items-center justify-center text-center group">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 blur-2xl opacity-50 group-hover:bg-indigo-50 transition-colors" />
+                            <div className="relative mb-6">
+                              <div className="w-24 h-24 bg-white rounded-[2rem] border-2 border-slate-100 shadow-xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-110">
+                                {currentData?.site_favicon?.url ? (
+                                  <img 
+                                    src={currentData.site_favicon.url} 
+                                    alt="Site Favicon" 
+                                    className="w-12 h-12 object-contain" 
+                                    onError={(e) => { (e.target as any).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5NDkzYjgiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Z2xvYmUvPjwvc3ZnPg=='; }}
+                                  />
+                                ) : (
+                                  <Globe className="w-10 h-10 text-slate-300" />
+                                )}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                      <div className="lg:col-span-8 bg-white border border-slate-200 p-10 rounded-[2.5rem] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.05)] relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-20 -mt-20 blur-3xl opacity-50 group-hover:bg-indigo-100 transition-colors" />
-                        <div className="relative z-10">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest mb-6">
-                            <AlertCircle className="w-3.5 h-3.5" /> Status: {currentData?.management_summary?.board_verdict || 'N/A'}
-                          </div>
-                          <h1 className="text-5xl md:text-6xl font-display font-bold text-slate-900 mb-8 leading-[1.05]">
-                            {currentData?.pdf_template_data?.company_name || 'Organization'} Management <br />
-                            <span className="text-indigo-600">SEO Audit Report</span>
-                          </h1>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-slate-100 pt-8 mt-4">
-                            {(currentData?.pdf_template_data?.hero_metrics || []).map((m: any, idx: number) => (
-                              <div key={idx} className="flex flex-col">
-                                <div className="flex items-center">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.label}</span>
-                                  <HelpTooltip text={m.description || ''} suggestion={m.suggestion || ''} />
-                                </div>
-                                <span className="text-3xl font-display font-bold text-slate-800">{m.value}</span>
+                              <div className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center shadow-lg ${currentData?.site_favicon?.status === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                                {currentData?.site_favicon?.status === 'Present' ? <Check className="w-5 h-5 text-white" /> : <X className="w-5 h-5 text-white" />}
                               </div>
-                            ))}
+                            </div>
+                            <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">Website Identity</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">Site-Wide Branding Check</p>
+                            <div className="flex flex-col items-center gap-3 w-full">
+                              <span className={`w-full py-2 rounded-xl text-xs font-black uppercase tracking-widest border ${currentData?.site_favicon?.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                {currentData?.site_favicon?.status || 'Missing'}
+                              </span>
+                              {currentData?.site_favicon?.status !== 'Present' && (
+                                <p className="text-[10px] font-bold text-rose-500 bg-rose-50 p-3 rounded-xl border border-rose-100">
+                                  No favicon detected → impacts branding and UX
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="lg:col-span-4 flex flex-col gap-8">
-                        <div className="p-8 bg-slate-900 text-white rounded-[2rem] shadow-xl relative overflow-hidden flex-1 group">
-                          <div className="relative z-10">
-                            <TrendingUp className="w-8 h-8 text-indigo-400 mb-6 group-hover:scale-110 transition-transform" />
-                            <h4 className="text-xl font-display font-bold mb-4">Prime Opportunity</h4>
-                            <p className="text-slate-400 text-sm leading-relaxed mb-6">{currentData.management_summary.growth_opportunity}</p>
-                            <div className="py-3 px-4 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
-                              <span className="text-xs font-bold text-slate-200">Confidence Factor</span>
-                              <span className="text-indigo-400 font-bold">Medium</span>
+
+                          {/* Performance Comparison Card */}
+                          <div className="lg:col-span-8 bg-slate-900 p-8 rounded-[3rem] shadow-2xl relative overflow-hidden text-white flex flex-col justify-center">
+                            <div className="absolute bottom-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mb-32" />
+                            <div className="flex items-center justify-between mb-10 relative z-10">
+                              <div>
+                                <h3 className="text-2xl font-display font-bold mb-1">Performance Benchmarks</h3>
+                                <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Global Speed Evaluation</p>
+                              </div>
+                              <Zap className="w-8 h-8 text-indigo-400 animate-pulse" />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                              {[
+                                { type: 'mobile', icon: Smartphone, label: 'Mobile Experience', data: currentData?.page_speed?.mobile },
+                                { type: 'desktop', icon: Monitor, label: 'Desktop Experience', data: currentData?.page_speed?.desktop }
+                              ].map((perf) => {
+                                const score = perf.data?.score || 0;
+                                const status = perf.data?.status || 'Not Available';
+                                const label = getScoreLabel(score);
+                                const color = score >= 90 ? 'text-emerald-400' : score >= 70 ? 'text-amber-400' : 'text-rose-400';
+                                const bgColor = score >= 90 ? 'bg-emerald-400' : score >= 70 ? 'bg-amber-400' : 'bg-rose-400';
+
+                                return (
+                                  <div key={perf.type} className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 transition-all group">
+                                    <div className="flex items-center justify-between mb-6">
+                                      <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-white/5 rounded-xl group-hover:bg-indigo-500/20 transition-colors">
+                                          <perf.icon className="w-5 h-5 text-indigo-400" />
+                                        </div>
+                                        <span className="text-xs font-black uppercase tracking-widest">{perf.label}</span>
+                                      </div>
+                                      <div className={`text-2xl font-display font-black ${color}`}>{score}%</div>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                        <motion.div 
+                                          initial={{ width: 0 }}
+                                          animate={{ width: `${score}%` }}
+                                          transition={{ duration: 1, delay: 0.5 }}
+                                          className={`h-full ${bgColor}`} 
+                                        />
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                          <span className="text-[9px] font-black text-slate-500 uppercase">Load Time</span>
+                                          <span className="text-sm font-bold text-slate-200">{perf.data?.load_time || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex flex-col items-end text-right">
+                                          <span className="text-[9px] font-black text-slate-500 uppercase">Verdict</span>
+                                          <span className={`text-sm font-black uppercase italic ${color}`}>{label}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="bg-white p-8 rounded-3xl border border-slate-200">
-                        <SectionHeader icon={Info} title="Executive Summary" />
-                        <p className="text-slate-600 leading-relaxed font-medium">{currentData.executive_summary}</p>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl flex items-start gap-4">
-                          <div className="p-2 bg-emerald-100 rounded-xl"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
-                          <div>
-                            <span className="text-[10px] font-black uppercase text-emerald-600 mb-1 block">Strongest Asset</span>
-                            <p className="text-sm font-bold text-emerald-900">{currentData.management_summary.strongest_asset}</p>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                          <div className="lg:col-span-8 bg-white border border-slate-200 p-10 rounded-[2.5rem] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.05)] relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-20 -mt-20 blur-3xl opacity-50 group-hover:bg-indigo-100 transition-colors" />
+                            <div className="relative z-10">
+                              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest mb-6">
+                                <AlertCircle className="w-3.5 h-3.5" /> Status: {currentData?.management_summary?.board_verdict || 'N/A'}
+                              </div>
+                              <h1 className="text-5xl md:text-6xl font-display font-bold text-slate-900 mb-8 leading-[1.05]">
+                                {currentData?.pdf_template_data?.company_name || 'Organization'} Management <br />
+                                <span className="text-indigo-600">SEO Audit Report</span>
+                              </h1>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-slate-100 pt-8 mt-4">
+                                {(currentData?.pdf_template_data?.hero_metrics || []).map((m: any, idx: number) => (
+                                  <div key={idx} className="flex flex-col">
+                                    <div className="flex items-center">
+                                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.label}</span>
+                                      <HelpTooltip text={m.description || ''} suggestion={m.suggestion || ''} />
+                                    </div>
+                                    <span className="text-3xl font-display font-bold text-slate-800">{m.value}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="lg:col-span-4 flex flex-col gap-8">
+                            <div className="p-8 bg-slate-900 text-white rounded-[2rem] shadow-xl relative overflow-hidden flex-1 group">
+                              <div className="relative z-10">
+                                <TrendingUp className="w-8 h-8 text-indigo-400 mb-6 group-hover:scale-110 transition-transform" />
+                                <h4 className="text-xl font-display font-bold mb-4">Prime Opportunity</h4>
+                                <p className="text-slate-400 text-sm leading-relaxed mb-6">{currentData.management_summary?.growth_opportunity}</p>
+                                <div className="py-3 px-4 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-200">Confidence Factor</span>
+                                  <span className="text-indigo-400 font-bold">Medium</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="bg-rose-50 border border-rose-100 p-6 rounded-3xl flex items-start gap-4">
-                          <div className="p-2 bg-rose-100 rounded-xl"><ShieldCheck className="w-5 h-5 text-rose-600" /></div>
-                          <div>
-                            <span className="text-[10px] font-black uppercase text-rose-600 mb-1 block">Biggest Risk</span>
-                            <p className="text-sm font-bold text-rose-900">{currentData.management_summary.biggest_risk}</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="bg-white p-8 rounded-3xl border border-slate-200">
+                            <SectionHeader icon={Info} title="Executive Summary" />
+                            <p className="text-slate-600 leading-relaxed font-medium">{currentData.executive_summary}</p>
+                          </div>
+                          <div className="space-y-4">
+                            <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl flex items-start gap-4">
+                              <div className="p-2 bg-emerald-100 rounded-xl"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase text-emerald-600 mb-1 block">Strongest Asset</span>
+                                <p className="text-sm font-bold text-emerald-900">{currentData.management_summary?.strongest_asset}</p>
+                              </div>
+                            </div>
+                            <div className="bg-rose-50 border border-rose-100 p-6 rounded-3xl flex items-start gap-4">
+                              <div className="p-2 bg-rose-100 rounded-xl"><ShieldCheck className="w-5 h-5 text-rose-600" /></div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase text-rose-600 mb-1 block">Biggest Risk</span>
+                                <p className="text-sm font-bold text-rose-900">{currentData.management_summary?.biggest_risk}</p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </motion.div>
                 )}
 
-                {activeTab === 'technical' && (
+                {activeTab === 'technical' && isDashboardActive && currentData && (
                   <motion.div key="technical" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="space-y-12">
                     <SectionHeader icon={Layers} title="Audit Benchmarks" subtitle="Comparison against current standards" />
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2708,7 +2559,7 @@ export default function SEOStudio() {
                   </motion.div>
                 )}
 
-                {activeTab === 'growth' && (
+                {activeTab === 'growth' && isDashboardActive && currentData && (
                   <motion.div key="growth" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
                     <SectionHeader icon={TrendingUp} title="Strategic Intelligence" subtitle="Market gap analysis" />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -2784,7 +2635,7 @@ export default function SEOStudio() {
                   </motion.div>
                 )}
 
-                {activeTab === 'performance' && (
+                {activeTab === 'performance' && isDashboardActive && currentData && (
                   <motion.div key="performance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
                     <SectionHeader icon={Zap} title="Core Performance" subtitle="Speed and Link Integrity" />
 
@@ -2964,7 +2815,7 @@ export default function SEOStudio() {
                   </motion.div>
                 )}
 
-                {activeTab === 'appendix' && (
+                {activeTab === 'appendix' && isDashboardActive && currentData && (
                   <motion.div key="appendix" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                     <SectionHeader icon={TableIcon} title="Sampled Intelligence" />
                     <PageAnalysisCards pages={currentData?.pages || currentData?.crawl_overview?.sampled_pages || []} />
@@ -2972,7 +2823,10 @@ export default function SEOStudio() {
                       <div className="lg:col-span-4 bg-white p-8 rounded-[2rem] border border-slate-200">
                         <div className="flex items-center gap-3 mb-8">
                           <Lock className="w-5 h-5 text-indigo-600" />
-                          <h5 className="font-bold underline underline-offset-4 decoration-indigo-200">Crawl Constraints</h5>
+                          <h5 className="font-bold underline underline-offset-4 decoration-indigo-200">
+                            Crawl Constraints
+                            <HelpTooltip text="Technical limitations encountered during the audit, such as restricted pages or anti-bot measures, which may limit the data available for analysis." />
+                          </h5>
                         </div>
                         <div className="divide-y divide-indigo-50">
                           {(currentData?.data_limitations || []).map((lim: any, idx: number) => (
@@ -2989,7 +2843,10 @@ export default function SEOStudio() {
                         <div className="relative z-10 flex flex-col h-full">
                           <div className="flex items-center gap-3 mb-10">
                             <Cpu className="w-6 h-6 text-indigo-400" />
-                            <h5 className="text-2xl font-display font-bold">AI Derived Strategic Directives</h5>
+                            <h5 className="text-2xl font-display font-bold">
+                              AI Derived Strategic Directives
+                              <HelpTooltip text="Advanced AI analysis that connects technical findings to business impact, providing high-level instructions for your SEO strategy." />
+                            </h5>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
                             {(currentData?.ai_insights?.insights || []).map((ins: any, idx: number) => (

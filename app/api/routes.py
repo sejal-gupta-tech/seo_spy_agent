@@ -17,12 +17,18 @@ from app.models.schema import (
     FixRequest,
     FixResponse,
 )
+print("[routes] Importing analysis_jobs...")
 from app.services.analysis_jobs import create_analysis_job, get_analysis_job
+print("[routes] Importing analysis_stream...")
 from app.services.analysis_stream import stream_analysis
+print("[routes] Importing scraper...")
 from app.services.scraper import analyze_url
+print("[routes] Importing fix_generator...")
 from app.services.fix_generator import generate_fix
+print("[routes] Importing validators...")
 from app.utils.validators import is_valid_url, normalize_url
-from app.services.db_service import save_audit_report, get_all_projects, get_project_audit
+print("[routes] Importing db_service...")
+from app.services.db_service import save_audit_report, get_all_projects, get_project_audit, delete_project
 
 router = APIRouter()
 
@@ -180,3 +186,18 @@ async def get_project(project_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="Project not found")
     return result
+
+
+@router.delete("/projects/{project_id}", dependencies=[Depends(_require_api_key)])
+async def remove_project(project_id: str):
+    logger.info(f"Received request to delete project: {project_id}")
+    try:
+        success = await delete_project(project_id)
+        if not success:
+            logger.warning(f"Delete failed for project {project_id}: project not found")
+            raise HTTPException(status_code=404, detail="Project not found or could not be deleted")
+        logger.info(f"Successfully deleted project: {project_id}")
+        return {"status": "deleted", "project_id": project_id}
+    except Exception as e:
+        logger.error(f"Error in remove_project: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

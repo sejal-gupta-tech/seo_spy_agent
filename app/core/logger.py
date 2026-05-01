@@ -15,9 +15,15 @@ def setup_logger():
 
     console_handler.setFormatter(formatter)
 
+    # File handler for debugging
+    file_handler = logging.FileHandler("backend_debug.log")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+
     # Avoid duplicate logs
     if not logger.handlers:
         logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
 
     return logger
 

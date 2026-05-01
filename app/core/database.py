@@ -1,9 +1,11 @@
 import os
 import re
 import certifi
+print("[database] Importing motor...")
 from motor.motor_asyncio import AsyncIOMotorClient
-
+print("[database] Importing config...")
 from app.core.config import MONGO_URL, MONGODB_DB_NAME
+print("[database] Importing logger...")
 from app.core.logger import logger
 
 
@@ -49,9 +51,14 @@ class MongoDBManager:
                 MONGO_URL,
                 **_mongo_client_kwargs(MONGO_URL),
             )
-            self.database = self.client.get_default_database()
-            if self.database is None:
+            # Prioritize MONGODB_DB_NAME if explicitly set in .env
+            if MONGODB_DB_NAME and MONGODB_DB_NAME != "seo_spy_agent":
                 self.database = self.client[MONGODB_DB_NAME]
+            else:
+                try:
+                    self.database = self.client.get_default_database()
+                except Exception:
+                    self.database = self.client[MONGODB_DB_NAME]
 
             # Ping to verify connection
             await self.client.admin.command("ping")

@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import sys
+import platform
+
+# Monkeypatch platform.system() as it hangs on this environment
+platform.system = lambda: "Windows" if sys.platform == "win32" else "Linux"
 
 import argparse
 import hashlib
 import os
-import platform
 import subprocess
-import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
 REQUIREMENTS_FILE = ROOT / "requirements.txt"
-DEFAULT_VENV_NAME = "venv"
+DEFAULT_VENV_NAME = "venv_working"
 ALT_VENV_NAME = ".venv"
 STAMP_FILE_NAME = ".requirements.sha256"
 
@@ -29,7 +32,7 @@ def detect_venv_dir() -> Path:
 
 
 def venv_python(venv_dir: Path) -> Path:
-    if platform.system() == "Windows":
+    if sys.platform == "win32":
         return venv_dir / "Scripts" / "python.exe"
     return venv_dir / "bin" / "python"
 
@@ -104,6 +107,9 @@ def ensure_requirements_installed(python_path: Path, venv_dir: Path) -> None:
 
 def requirements_match(python_path: Path) -> bool:
     verification_script = """
+import sys
+import platform
+platform.system = lambda: "Windows" if sys.platform == "win32" else "Linux"
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 import sys
@@ -159,6 +165,9 @@ def pip_check_passes(python_path: Path) -> bool:
 def run_smoke_checks(python_path: Path) -> None:
     log("Running local smoke checks.")
     smoke_script = """
+import sys
+import platform
+platform.system = lambda: "Windows" if sys.platform == "win32" else "Linux"
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -292,7 +301,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not start the frontend server.",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="Host for the uvicorn server.")
+    parser.add_argument("--host", default="0.0.0.0", help="Host for the uvicorn server.")
     parser.add_argument("--port", type=int, default=8000, help="Port for the uvicorn server.")
     return parser.parse_args()
 
@@ -303,7 +312,8 @@ def main() -> None:
 
     args = parse_args()
 
-    log(f"Detected operating system: {platform.system()}")
+    ps = "Windows" if sys.platform == "win32" else "Linux"
+    log(f"Detected operating system: {ps}")
     venv_dir = detect_venv_dir()
     python_path = ensure_venv(venv_dir)
     ensure_requirements_installed(python_path, venv_dir)

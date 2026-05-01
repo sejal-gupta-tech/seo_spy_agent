@@ -91,20 +91,55 @@ def _extract_meta_content(soup: BeautifulSoup, attr_name: str, attr_value: str) 
 
 
 def _extract_text_word_count(soup: BeautifulSoup) -> int:
-    """Extract word count efficiently by filtering text nodes directly."""
+    """Extract word count efficiently by filtering text nodes and checking ancestors."""
     # Define tags to exclude from word count
-    exclude_tags = {"script", "style", "noscript", "svg", "header", "footer", "nav"}
+    exclude_tags = {"script", "style", "noscript", "svg", "header", "footer", "nav", "head", "form"}
     
-    # Get all text nodes that are not children of excluded tags
+    # Get all text nodes
     texts = soup.find_all(string=True)
-    visible_texts = [
-        t for t in texts 
-        if t.parent.name not in exclude_tags
-    ]
+    visible_texts = []
+    
+    for t in texts:
+        content = str(t).strip()
+        if not content:
+            continue
+            
+        parent = t.parent
+        if not parent:
+            continue
+            
+        # Recursive check up the tree to see if any ancestor is excluded
+        is_excluded = False
+        curr = parent
+        while curr and curr.name != '[document]':
+            if curr.name in exclude_tags:
+                is_excluded = True
+                break
+            # Also check for hidden elements if style attribute exists
+            if curr.has_attr('style'):
+                style = str(curr.get('style', '')).lower()
+                if 'display: none' in style or 'visibility: hidden' in style:
+                    is_excluded = True
+                    break
+            curr = curr.parent
+            
+        if not is_excluded:
+            visible_texts.append(content)
     
     combined_text = " ".join(visible_texts)
+    # Match words including those with hyphens and apostrophes
     words = re.findall(r"\b[\w'-]+\b", combined_text)
-    return len(words)
+    
+    count = len(words)
+    
+    # Fallback: if we found 0 words but the body has text, try a simpler get_text()
+    if count == 0 and soup.body:
+        fallback_text = soup.body.get_text(separator=" ", strip=True)
+        fallback_words = re.findall(r"\b[\w'-]+\b", fallback_text)
+        count = len(fallback_words)
+        
+    return count
+
 
 
 def _extract_structured_data_types(soup: BeautifulSoup) -> list[str]:
