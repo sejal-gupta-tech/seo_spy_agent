@@ -38,7 +38,7 @@ def generate_pdf_report(
         logger.info("PDF generated at %s using WeasyPrint", pdf_path)
         return task_id
     except (ImportError, Exception) as e:
-        logger.warning("WeasyPrint failed (likely missing GTK): %s. Trying xhtml2pdf fallback...", str(e))
+        logger.warning("WeasyPrint not available: %s. Trying xhtml2pdf fallback...", str(e))
 
     # Try xhtml2pdf as fallback (no native dependencies)
     fallback_source = fallback_html_content or html_content
@@ -56,16 +56,18 @@ def generate_pdf_report(
             return task_id
         else:
             logger.error("xhtml2pdf failed to generate PDF: %s", pisa_status.err)
+    except ImportError:
+        logger.warning("xhtml2pdf not installed, skipping PDF generation")
     except Exception as e:
         logger.error("xhtml2pdf fallback failed: %s", str(e))
 
     _delete_if_empty(pdf_path)
 
-    # Final fallback: save HTML instead
+    # Final fallback: save HTML instead (always works)
     try:
         with html_path.open("w", encoding="utf-8") as f:
             f.write(html_content)
-        logger.info("HTML fallback saved at %s", html_path)
+        logger.info("HTML report saved at %s (PDF libraries not available)", html_path)
         return task_id
     except Exception as e:
         logger.error("All PDF/HTML generation attempts failed: %s", str(e))

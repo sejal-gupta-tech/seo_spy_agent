@@ -10,8 +10,6 @@ Jinja2==3.1.6
 lxml==6.1.0
 pydantic==2.12.5
 pydantic-settings==2.13.1
-weasyprint==68.1
-xhtml2pdf==0.2.16
 annotated-types==0.7.0
 anyio==4.13.0
 certifi==2026.2.25
