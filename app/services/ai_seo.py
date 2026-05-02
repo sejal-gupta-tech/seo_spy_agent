@@ -10,6 +10,7 @@ def generate_seo_suggestions(data: dict) -> dict:
     title = data.get("title", "")
     description = data.get("description", "")
     headings = data.get("headings", {})
+    
 
     headings_text = " ".join(item for sublist in headings.values() for item in sublist)
 
