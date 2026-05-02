@@ -38,7 +38,7 @@ def generate_pdf_report(
         logger.info("PDF generated at %s using WeasyPrint", pdf_path)
         return task_id
     except (ImportError, Exception) as e:
-        logger.warning("WeasyPrint failed (likely missing GTK): %s. Trying xhtml2pdf fallback...", str(e))
+        logger.info("WeasyPrint not available or failed (expected on Vercel): %s. Using xhtml2pdf...", str(e))
 
     # Try xhtml2pdf as fallback (no native dependencies)
     fallback_source = fallback_html_content or html_content

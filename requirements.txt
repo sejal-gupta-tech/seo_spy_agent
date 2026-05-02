@@ -10,8 +10,11 @@ Jinja2==3.1.6
 lxml==6.1.0
 pydantic==2.12.5
 pydantic-settings==2.13.1
-weasyprint==68.1
-xhtml2pdf==0.2.16
+# PDF generation (Using versions compatible with Vercel/Serverless)
+# WeasyPrint removed due to heavy C dependencies (Cairo, Pango)
+# xhtml2pdf 0.2.9 avoids the svglib->pycairo dependency chain
+xhtml2pdf==0.2.9
+reportlab==4.3.1
 annotated-types==0.7.0
 anyio==4.13.0
 certifi==2026.2.25
