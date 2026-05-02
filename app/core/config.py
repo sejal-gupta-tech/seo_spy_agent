@@ -7,7 +7,12 @@ load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = PROJECT_ROOT / "app" / "templates"
-REPORTS_DIR = PROJECT_ROOT / "reports"
+
+# On Vercel, the filesystem is read-only except for /tmp
+if os.getenv("VERCEL") == "1":
+    REPORTS_DIR = Path("/tmp/reports")
+else:
+    REPORTS_DIR = PROJECT_ROOT / "reports"
 
 
 def _read_int(name: str, default: int) -> int:
