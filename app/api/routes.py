@@ -144,7 +144,7 @@ async def analyze_stream(data: URLRequest):
     # analysis_stream.py and emitted as {"type":"error"} NDJSON events,
     # so they never escape to uvicorn as bare text errors.
     return StreamingResponse(
-        stream_analysis(normalized_url),
+        stream_analysis(normalized_url, business_type=data.business_type),
         media_type="application/x-ndjson",
         headers={
             "Cache-Control": "no-cache",

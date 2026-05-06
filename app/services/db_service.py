@@ -38,19 +38,43 @@ async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]
                 seo_score = derived
                 logger.info(f"Derived seo_score={seo_score} from metric_summary for {url}")
 
-        project_doc = {
-            "url": url,
-            "business_type": business_type,
-            "seo_score": seo_score,
-            "report_url": result.get("report_url"),
-            "created_at": datetime.now(timezone.utc)
-        }
+        # Normalize URL for uniqueness checks (strip spaces, lowercase, remove trailing slash)
+        normalized_url = url.strip().lower().rstrip("/")
+        current_time = datetime.now(timezone.utc)
         
-        # Insert project and get its ID
-        project_result = await db.projects.insert_one(project_doc)
-        project_id = project_result.inserted_id
+        # Check if project with this URL already exists to avoid duplicates
+        existing_project = await db.projects.find_one({"url": normalized_url})
         
-        logger.info(f"Created project {project_id} for URL: {url}")
+        if existing_project:
+            project_id = existing_project["_id"]
+            # Update existing project record
+            await db.projects.update_one(
+                {"_id": project_id},
+                {
+                    "$set": {
+                        "seo_score": seo_score,
+                        "report_url": result.get("report_url"),
+                        "business_type": business_type,
+                        "site_favicon": result.get("site_favicon"),
+                        "updated_at": current_time
+                    }
+                }
+            )
+            logger.info(f"Updated existing project {project_id} for URL: {normalized_url}")
+        else:
+            # Create new project record
+            project_doc = {
+                "url": normalized_url,
+                "business_type": business_type,
+                "seo_score": seo_score,
+                "report_url": result.get("report_url"),
+                "site_favicon": result.get("site_favicon"),
+                "created_at": current_time,
+                "updated_at": current_time
+            }
+            project_result = await db.projects.insert_one(project_doc)
+            project_id = project_result.inserted_id
+            logger.info(f"Created new project {project_id} for URL: {normalized_url}")
 
         # 2. Prepare 'audit_results' (Technical SEO)
         technical_audit = result.get("technical_audit", {})
@@ -58,9 +82,14 @@ async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]
             "project_id": project_id,
             "overall_seo_health": seo_score,
             "metric_summary": technical_audit.get("metric_summary", []),
-            "findings": technical_audit.get("findings", [])
+            "findings": technical_audit.get("findings", []),
+            "updated_at": current_time
         }
-        await db.audit_results.insert_one(audit_doc)
+        await db.audit_results.update_one(
+            {"project_id": project_id},
+            {"$set": audit_doc},
+            upsert=True
+        )
 
         # 3. Prepare 'ai_insights' (AI + Business Layer)
         insights_doc = {
@@ -69,17 +98,27 @@ async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]
             "management_summary": result.get("management_summary", {}),
             "recommended_roadmap": result.get("recommended_roadmap", []),
             "data_limitations": result.get("data_limitations", []),
-            "insights": result.get("ai_insights", {}).get("insights", [])
+            "insights": result.get("ai_insights", {}).get("insights", []),
+            "updated_at": current_time
         }
-        await db.ai_insights.insert_one(insights_doc)
+        await db.ai_insights.update_one(
+            {"project_id": project_id},
+            {"$set": insights_doc},
+            upsert=True
+        )
 
         # 4. Prepare 'seo_data' (Keywords + Competitors)
         seo_data_doc = {
             "project_id": project_id,
             "competitive_intelligence": result.get("competitive_intelligence", {}),
-            "keyword_analysis": result.get("keyword_analysis", {})
+            "keyword_analysis": result.get("keyword_analysis", {}),
+            "updated_at": current_time
         }
-        await db.seo_data.insert_one(seo_data_doc)
+        await db.seo_data.update_one(
+            {"project_id": project_id},
+            {"$set": seo_data_doc},
+            upsert=True
+        )
 
         # 5. Prepare 'crawl_data' (Page-level info + Performance + Links)
         crawl_overview = result.get("crawl_overview", {})
@@ -101,9 +140,14 @@ async def save_audit_report(url: str, business_type: str, result: Dict[str, Any]
             "pages": sampled_pages,
             "page_speed": result.get("page_speed", {}),
             "link_analysis": result.get("link_analysis", {}),
-            "content_strategy": result.get("content_strategy", {})
+            "content_strategy": result.get("content_strategy", {}),
+            "updated_at": current_time
         }
-        await db.crawl_data.insert_one(crawl_doc)
+        await db.crawl_data.update_one(
+            {"project_id": project_id},
+            {"$set": crawl_doc},
+            upsert=True
+        )
 
         logger.info(f"Successfully saved all audit components for project {project_id}")
         return project_id

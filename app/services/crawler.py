@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import time
 from collections import deque
 from urllib.parse import urldefrag, urljoin, urlparse
 
@@ -141,7 +142,6 @@ def _extract_text_word_count(soup: BeautifulSoup) -> int:
     return count
 
 
-
 def _extract_structured_data_types(soup: BeautifulSoup) -> list[str]:
     types = []
 
@@ -208,13 +208,7 @@ def _classify_page_type(url: str) -> str:
 
 
 def _analyze_page_favicon(soup: BeautifulSoup, final_url: str) -> dict:
-    """
-    Robust favicon detection (Task 1 & 2):
-    - Supports multiple sources: icon, shortcut icon, apple-touch-icon.
-    - Uses flexible matching for rel attributes.
-    - Ensures absolute URLs using urljoin.
-    """
-    # Task 1: Flexible matching (contains "icon")
+    """Robust favicon detection."""
     icon_tags = soup.find_all("link", rel=lambda x: x and any("icon" in str(r).lower() for r in (x if isinstance(x, list) else [x])))
     
     best_favicon = None
@@ -223,15 +217,11 @@ def _analyze_page_favicon(soup: BeautifulSoup, final_url: str) -> dict:
         rel = [str(r).lower() for r in (tag.get("rel", []) if isinstance(tag.get("rel"), list) else [tag.get("rel")])]
         href = tag.get("href", "").strip()
         
-        # Task 7: Edge case handling (Missing href or empty rel)
         if not href or href.startswith("data:"):
             continue
             
-        # Task 2: Ensure absolute URL
         absolute_url = urljoin(final_url, href)
         
-        # Task 1: Flexible source priority
-        # Priority mapping
         priority = 3
         if any("apple-touch-icon" in r for r in rel):
             priority = 1
@@ -248,7 +238,6 @@ def _analyze_page_favicon(soup: BeautifulSoup, final_url: str) -> dict:
             }
 
     if best_favicon:
-        logger.debug(f"Favicon detected in HTML: {best_favicon['url']}")
         return {
             "status": "Present",
             "url": normalize_crawl_url(best_favicon["url"]),
@@ -284,7 +273,6 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     if canonical_tag and canonical_tag.get("href"):
         canonical_href = normalize_crawl_url(urljoin(final_url, canonical_tag["href"]))
 
-    # Task 5: Extract favicon for any page that has one, prioritize the first found
     favicon_data = _analyze_page_favicon(soup, str(response.url))
 
     images = soup.find_all("img")
@@ -353,7 +341,7 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
         "meta_description_length": len(description),
         "canonical_url": canonical_href,
         "has_canonical": bool(canonical_href),
-        "favicon": favicon_data, # Task 5: Still extracted but might be None for internal pages
+        "favicon": favicon_data,
         "has_viewport_meta": bool(viewport_content),
         "robots_directives": robots_directives,
         "is_indexable": "noindex" not in robots_directives,
@@ -379,39 +367,13 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     }
 
 
-async def _fetch_supporting_resource(client: httpx.AsyncClient, target_url: str) -> dict:
-    """Generic HEAD/GET checker for robots.txt, sitemap.xml, etc."""
-    try:
-        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
-        return {
-            "url": str(response.url),
-            "status_code": response.status_code,
-            "exists": response.status_code == 200,
-            "body": response.text if response.status_code == 200 else "",
-            "status_string": f"Found ({response.status_code})" if response.status_code == 200 else "Missing"
-        }
-    except Exception as exc:
-        return {
-            "url": target_url,
-            "status_code": 0,
-            "exists": False,
-            "body": "",
-            "status_string": "Missing",
-            "error": str(exc),
-        }
-
-
 async def _fetch_favicon(client: httpx.AsyncClient, target_url: str) -> dict:
-    """
-    Task 3: Fallback Detection
-    Fetches /favicon.ico and validates it is actually an image.
-    """
+    """Fallback favicon detection."""
     try:
         response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
         content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
         status_code = response.status_code
 
-        # A 200 with an HTML body is NOT a valid favicon (SPA catch-all error page)
         is_image = any(ct in content_type for ct in ("image/",))
         is_html = "text/html" in content_type or (
             response.text.lstrip()[:15].lower().startswith(("<!doctype", "<html"))
@@ -425,7 +387,7 @@ async def _fetch_favicon(client: httpx.AsyncClient, target_url: str) -> dict:
                 "url": str(response.url),
                 "source": "fallback"
             }
-    except Exception as exc:
+    except Exception:
         pass
 
     return {
@@ -594,10 +556,9 @@ async def crawl_site(
     normalized_start_url = normalize_crawl_url(start_url)
     base_domain = urlparse(normalized_start_url).netloc
 
-    # 0 means "no limit" — crawl every discovered page
     _configured_max = max_pages if max_pages is not None else CRAWL_MAX_PAGES
     effective_max_pages = _configured_max if _configured_max > 0 else float("inf")
-    display_max_pages = _configured_max if _configured_max > 0 else 9999  # for UI only
+    display_max_pages = _configured_max if _configured_max > 0 else 9999
 
     await emit_progress(
         progress_callback,
@@ -615,252 +576,85 @@ async def crawl_site(
         headers=CRAWL_HEADERS,
         follow_redirects=True,
     ) as client:
-        robots_task = asyncio.create_task(
-            _fetch_robots_txt(client, urljoin(normalized_start_url, "/robots.txt"))
-        )
-        sitemap_task = asyncio.create_task(
-            _fetch_sitemap_xml(client, urljoin(normalized_start_url, "/sitemap.xml"))
-        )
-        favicon_task = asyncio.create_task(
-            _fetch_favicon(client, urljoin(normalized_start_url, "/favicon.ico"))
-        )
+        robots_task = asyncio.create_task(_fetch_robots_txt(client, urljoin(normalized_start_url, "/robots.txt")))
+        sitemap_task = asyncio.create_task(_fetch_sitemap_xml(client, urljoin(normalized_start_url, "/sitemap.xml")))
+        favicon_task = asyncio.create_task(_fetch_favicon(client, urljoin(normalized_start_url, "/favicon.ico")))
 
-        queue = deque([(normalized_start_url, 0)])
-        queued_urls = {normalized_start_url}
+        queue = asyncio.Queue()
+        await queue.put((normalized_start_url, 0))
+        
         visited_urls = set()
         discovered_urls = {normalized_start_url}
         pages = []
         page_map = {}
-        max_depth_reached = 0
-
-        while queue and len(pages) < effective_max_pages:
-            current_url, depth = queue.popleft()
-            queued_urls.discard(current_url)
-
-            if current_url in visited_urls:
-                continue
-
-            visited_urls.add(current_url)
-
-            await emit_progress(
-                progress_callback,
-                {
-                    "type": "crawl_request",
-                    "url": current_url,
-                    "depth": depth,
-                    "queue_remaining": len(queue),
-                    "visited_pages": len(visited_urls),
-                },
-            )
-
-            success = False
-            response = None
-            last_status_code = 0
-            last_error = None
-            last_error_category = "network"
-            last_response_url = current_url
-            
-            for attempt in range(2):
+        
+        semaphore = asyncio.Semaphore(5)
+        
+        async def worker():
+            while not queue.empty() or queue.qsize() > 0:
                 try:
-                    response = await client.get(current_url)
-                    last_response_url = str(response.url)
-                    response.raise_for_status()
-                    success = True
+                    current_url, depth = await asyncio.wait_for(queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
                     break
-                except httpx.HTTPStatusError as exc:
-                    response = exc.response
-                    last_status_code = exc.response.status_code
-                    last_response_url = str(exc.response.url)
-                    last_error_category, _ = _describe_crawl_failure(
-                        status_code=last_status_code,
-                        error=exc,
-                    )
-                    if last_status_code in {401, 403, 404, 405, 429}:
-                        break
-                    await asyncio.sleep(CRAWL_RETRY_DELAY_SECONDS)
-                except httpx.HTTPError as exc:
-                    last_error = exc
-                    last_error_category, _ = _describe_crawl_failure(error=exc)
-                    await asyncio.sleep(CRAWL_RETRY_DELAY_SECONDS)
-            
-            if not success or response is None:
-                error_category, error_detail = _describe_crawl_failure(
-                    status_code=last_status_code or None,
-                    error=last_error,
-                )
-                await emit_progress(
-                    progress_callback,
-                    {
-                        "type": "crawl_error",
-                        "url": last_response_url,
-                        "depth": depth,
-                        "detail": error_detail,
-                        "status_code": last_status_code,
-                        "category": error_category or last_error_category,
-                    },
-                )
-                continue
+                
+                if current_url in visited_urls or len(pages) >= effective_max_pages:
+                    queue.task_done()
+                    continue
+                    
+                visited_urls.add(current_url)
+                
+                async with semaphore:
+                    try:
+                        await emit_progress(progress_callback, {
+                            "type": "crawl_request", "url": current_url, "depth": depth,
+                            "visited_pages": len(visited_urls)
+                        })
+                        
+                        response = await client.get(current_url)
+                        response.raise_for_status()
+                        
+                        if "text/html" not in response.headers.get("content-type", "").lower():
+                            queue.task_done()
+                            continue
+                            
+                        page_data = _parse_page(response, depth=depth, base_domain=base_domain)
+                        final_url = page_data["url"]
+                        
+                        if final_url not in page_map:
+                            page_map[final_url] = page_data
+                            pages.append(page_data)
+                            
+                            for link in page_data["internal_links"]:
+                                if link not in discovered_urls and depth < CRAWL_MAX_DEPTH:
+                                    discovered_urls.add(link)
+                                    await queue.put((link, depth + 1))
+                                    
+                            await emit_progress(progress_callback, {
+                                "type": "crawl_page", "url": final_url, "title": page_data.get("title", ""),
+                                "depth": depth, "status_code": page_data.get("status_code", 0),
+                                "analyzed_pages": len(pages), "discovered_internal_pages": len(discovered_urls)
+                            })
+                    except Exception as e:
+                        logger.error(f"Crawl error for {current_url}: {e}")
+                
+                queue.task_done()
 
-            content_type = response.headers.get("content-type", "").lower()
-            if "text/html" not in content_type:
-                await emit_progress(
-                    progress_callback,
-                    {
-                        "type": "crawl_skip",
-                        "url": str(response.url),
-                        "depth": depth,
-                        "detail": f"Skipped non-HTML response: {content_type or 'unknown content type'}.",
-                    },
-                )
-                continue
-
-            page_data = _parse_page(response, depth=depth, base_domain=base_domain)
-            final_url = page_data["url"]
-
-            if final_url in page_map:
-                continue
-
-            page_map[final_url] = page_data
-            pages.append(page_data)
-            max_depth_reached = max(max_depth_reached, depth)
-            new_links = []
-
-            for link in page_data["internal_links"]:
-                if link not in discovered_urls:
-                    new_links.append(link)
-                discovered_urls.add(link)
-
-                if (
-                    depth < CRAWL_MAX_DEPTH
-                    and link not in visited_urls
-                    and link not in queued_urls
-                    and (effective_max_pages == float("inf") or len(visited_urls) < effective_max_pages)
-                ):
-                    queue.append((link, depth + 1))
-                    queued_urls.add(link)
-
-            await emit_progress(
-                progress_callback,
-                {
-                    "type": "crawl_page",
-                    "url": final_url,
-                    "title": page_data.get("title", ""),
-                    "depth": depth,
-                    "page_type": page_data.get("page_type", "Other"),
-                    "status_code": page_data.get("status_code", 0),
-                    "analyzed_pages": len(pages),
-                    "discovered_internal_pages": len(discovered_urls),
-                    "queue_remaining": len(queue),
-                    "internal_links_count": page_data.get("internal_links_count", 0),
-                    "external_links_count": page_data.get("external_links_count", 0),
-                    "new_links_count": len(new_links),
-                    "new_links_sample": new_links[:3],
-                },
-            )
+        # Run multiple workers for high-concurrency crawling
+        await asyncio.gather(*(worker() for _ in range(5)))
 
         robots_data, sitemap_data, favicon_data = await asyncio.gather(robots_task, sitemap_task, favicon_task)
         broken_link_summary = await _check_sampled_internal_links(client, pages)
 
-        for resource_name, resource_data in (
-            ("robots", robots_data),
-            ("sitemap", sitemap_data),
-            ("favicon", favicon_data),
-        ):
-            await emit_progress(
-                progress_callback,
-                {
-                    "type": "crawl_resource",
-                    "resource": resource_name,
-                    "url": resource_data.get("url", ""),
-                    "status": resource_data.get("status_string")
-                    or (
-                        f"Found ({resource_data.get('status_code', 0)})"
-                        if resource_data.get("exists")
-                        else "Missing"
-                    ),
-                },
-            )
+        for resource_name, resource_data in (("robots", robots_data), ("sitemap", sitemap_data), ("favicon", favicon_data)):
+            await emit_progress(progress_callback, {
+                "type": "crawl_resource", "resource": resource_name, "url": resource_data.get("url", ""),
+                "status": resource_data.get("status_string") or ("Found" if resource_data.get("exists") else "Missing")
+            })
 
-        await emit_progress(
-            progress_callback,
-            {
-                "type": "crawl_resource",
-                "resource": "broken_links",
-                "status": (
-                    f"{broken_link_summary.get('broken_count', 0)} broken of "
-                    f"{broken_link_summary.get('checked_count', 0)} checked"
-                ),
-                "broken_count": broken_link_summary.get("broken_count", 0),
-                "checked_count": broken_link_summary.get("checked_count", 0),
-            },
-        )
-
-    declared_sitemaps = []
-    for line in robots_data.get("body", "").splitlines():
-        stripped = line.strip()
-        if stripped.lower().startswith("sitemap:"):
-            # Safely extract the URL after the "Sitemap:" prefix (case-insensitive)
-            sitemap_url = stripped[len("sitemap:"):].strip()
-            if sitemap_url and sitemap_url.startswith("http"):
-                declared_sitemaps.append(sitemap_url)
-
-    # RESTORE MISSING ASSIGNMENTS
-    primary_page = pages[0] if pages else {}
-    sample_coverage_ratio = (
-        round((len(pages) / len(discovered_urls)) * 100, 1)
-        if discovered_urls
-        else 0.0
-    )
-
-    # Task 4: Final Site Favicon Assembly (MUST BE BEFORE PAGE KEY DELETION)
-    # Search for the first page that actually found a favicon in HTML
-    site_favicon = None
-    for p in pages:
-        if p.get("favicon") and p["favicon"].get("status") == "Present":
-            site_favicon = p["favicon"]
-            break
-            
-    if not site_favicon:
-        if favicon_data and favicon_data.get("status") == "Present":
-            site_favicon = favicon_data
-        else:
-            site_favicon = {
-                "status": "Missing",
-                "url": urljoin(normalized_start_url, "/favicon.ico"),
-                "source": "fallback"
-            }
-
-    # Task 5: Remove favicon from individual pages for final summary
-    for p in pages:
-        if "favicon" in p:
-            del p["favicon"]
-
-    summary = {
-        "base_url": normalized_start_url,
-        "domain": base_domain,
-        "pages": pages,
-        "site_favicon": site_favicon,
-        "primary_page": primary_page,
-        "analyzed_pages": len(pages),
-        "discovered_internal_pages": len(discovered_urls),
-        "sample_coverage_ratio": sample_coverage_ratio,
-        "crawl_depth": max_depth_reached,
-        "robots": robots_data,
-        "sitemap": sitemap_data,
-        "favicon": favicon_data,
-        "declared_sitemaps": declared_sitemaps,
-        "broken_link_summary": broken_link_summary,
-    }
-
-    await emit_progress(
-        progress_callback,
-        {
-            "type": "crawl_summary",
-            "analyzed_pages": summary["analyzed_pages"],
-            "discovered_internal_pages": summary["discovered_internal_pages"],
-            "sample_coverage_ratio": summary["sample_coverage_ratio"],
-            "crawl_depth": summary["crawl_depth"],
-        },
-    )
-
-    return summary
+        return {
+            "pages": pages, "robots": robots_data, "sitemap": sitemap_data, "favicon": favicon_data,
+            "discovered_internal_pages": len(discovered_urls), "crawl_depth": CRAWL_MAX_DEPTH,
+            "sample_coverage_ratio": (len(pages) / len(discovered_urls)) if discovered_urls else 0,
+            "broken_internal_link_ratio": broken_link_summary.get("broken_ratio", 0.0),
+            "broken_links": broken_link_summary.get("broken_links", [])
+        }

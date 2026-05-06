@@ -75,6 +75,44 @@ def generate_seo_suggestions(data: dict) -> dict:
         }
 
 
+def generate_consolidated_strategy(primary_page: dict) -> dict:
+    """A high-performance unified LLM call that returns keyword strategy, blog themes, and guest posts in one pass."""
+    client = get_openai_client()
+    if not client:
+        return {"primary": {}, "blog_posts": [], "guest_post_titles": []}
+
+    title = primary_page.get("title", "")
+    desc = primary_page.get("description", "")
+    
+    prompt = f"""
+    You are an SEO Director. Perform a comprehensive content strategy for this page:
+    Title: {title}
+    Description: {desc}
+
+    Return a JSON object containing:
+    1. "primary": {{ "keywords": [3 words], "new_title": "50-60 chars", "new_meta_description": "140-160 chars" }}
+    2. "blog_posts": [2 highly relevant SEO blog post ideas with title and 2-point outline]
+    3. "guest_post_titles": [3 authority guest post title ideas]
+
+    Format: JSON only.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a professional SEO analyst. Output strictly valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.4,
+            response_format={"type": "json_object"}
+        )
+        return json.loads(response.choices[0].message.content.strip())
+    except Exception as e:
+        logger.error(f"Consolidated AI call failed: {e}")
+        return {"primary": {}, "blog_posts": [], "guest_post_titles": []}
+
+
 def extract_main_keyword(ai_result: dict, fallback_text: str = "") -> str:
     keywords = ai_result.get("keywords", [])
 

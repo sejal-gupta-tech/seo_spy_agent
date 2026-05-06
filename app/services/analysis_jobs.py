@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from app.core.logger import logger
 from app.services.scraper import analyze_url
+from app.services.db_service import save_audit_report
 
 _RECENT_EVENT_LIMIT = 50
 _jobs: dict[str, dict[str, Any]] = {}
@@ -68,6 +69,12 @@ async def _run_job(job_id: str, url: str) -> None:
             else:
                 job["status"] = "completed"
                 job["result"] = result
+                # PERSIST TO DATABASE
+                try:
+                    await save_audit_report(url, "General", result)
+                    logger.info(f"Background job {job_id} for {url} saved to database.")
+                except Exception as db_exc:
+                    logger.error(f"Failed to save background job audit for {url}: {db_exc}")
     except Exception:
         logger.exception("Analysis job %s failed for URL %s", job_id, url)
         with _jobs_lock:

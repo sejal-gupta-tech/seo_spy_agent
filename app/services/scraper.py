@@ -5,7 +5,7 @@ import traceback
 
 from app.core.logger import logger
 from app.services.progress import ProgressCallback, emit_progress
-from app.services.ai_seo import extract_main_keyword, generate_seo_suggestions
+from app.services.ai_seo import extract_main_keyword, generate_seo_suggestions, generate_consolidated_strategy
 from app.services.audit import audit_seo, audit_sitewide
 from app.services.comparison import compare_with_competitors, get_page_headings
 from app.services.competitor import get_top_competitors
@@ -126,7 +126,7 @@ class SEOAuditPipeline:
         await self.emit({
             "type": "stage", "stage": "crawl", "status": "active",
             "label": "Mapping crawl frontier",
-            "detail": "Collecting HTML pages and performance signals."
+            "detail": f"Exploring structure of {self.url}..."
         })
 
         from app.services.page_speed import get_page_speed
@@ -217,38 +217,46 @@ class SEOAuditPipeline:
 
     async def _ai_strategy_stage(self):
         """Phase 3: AI-Driven Insights and Strategy."""
-        await self.emit({
-            "type": "stage", "stage": "ai", "status": "active",
-            "label": "Running AI strategy passes",
-            "detail": "Generating keyword themes and rewrite angles."
-        })
-        
         primary_page = self.crawl_data.get("primary_page", self.pages[0])
         
-        # Start AI suggestions
-        self.ai_result = await asyncio.to_thread(generate_seo_suggestions, primary_page)
+        # Phase 3 & 4 Overlap: Start AI and Competitor discovery in parallel
+        await self.emit({
+            "type": "stage", "stage": "ai", "status": "active",
+            "label": "Formulating content strategy",
+            "detail": "Synthesizing keywords and competitor landscape."
+        })
+
+        # Pre-infer keyword for parallel competitor fetch
+        fast_keyword = extract_main_keyword({}, primary_page.get("title", ""))
+        
+        # Start both AI and Competitor discovery
+        ai_task = asyncio.to_thread(generate_consolidated_strategy, primary_page)
+        comp_task = get_top_competitors(fast_keyword)
+        
+        consolidated, self.competitors = await asyncio.gather(ai_task, comp_task)
+        
+        self.ai_result = consolidated.get("primary", {})
         self.site_profile = build_site_profile(self.url, primary_page, self.ai_result)
-        
-        # Parallel content strategy
-        from app.services.content_strategy import generate_blog_suggestions, generate_guest_post_titles
-        blog_task = asyncio.to_thread(generate_blog_suggestions, primary_page, self.ai_result)
-        guest_task = asyncio.to_thread(generate_guest_post_titles, primary_page, self.ai_result)
-        
-        self.blog_suggestions, self.guest_posts = await asyncio.gather(blog_task, guest_task)
+        self.blog_suggestions = {"blog_posts": consolidated.get("blog_posts", [])}
+        self.guest_posts = {"guest_post_titles": consolidated.get("guest_post_titles", [])}
+
+        await self.emit({
+            "type": "stage", "stage": "ai", "status": "completed",
+            "label": "Strategy formulated",
+            "detail": "AI insights ready for market comparison."
+        })
 
     async def _competition_stage(self):
         """Phase 4: Competitor Analysis."""
         await self.emit({
             "type": "stage", "stage": "competition", "status": "active",
-            "label": "Comparing market coverage",
-            "detail": "Searching competitors and extracting their heading coverage."
+            "label": "Analyzing market gaps",
+            "detail": "Crunching competitor data and overlap scores."
         })
-        
+
         primary_page = self.crawl_data.get("primary_page", self.pages[0])
         fallback_text = f"{primary_page.get('title', '')} {primary_page.get('description', '')}"
         main_keyword = extract_main_keyword(self.ai_result, fallback_text)
-        
-        self.competitors = await get_top_competitors(main_keyword)
         
         # Parallel Competitor Heading Extraction
         if self.competitors:
@@ -314,11 +322,16 @@ class SEOAuditPipeline:
         self.final_report_id = generate_pdf_report(
             html,
             fallback_html_content=fallback_html,
-        )
+            )
 
     async def execute(self) -> dict:
         """Run the full pipeline."""
         try:
+            await self.emit({
+                "type": "stage", "stage": "crawl", "status": "active",
+                "label": "Protocol Initialized",
+                "detail": "Connection established. Beginning site mapping..."
+            })
             await self._crawl_stage()
             await self._audit_stage()
             await self._ai_strategy_stage()
