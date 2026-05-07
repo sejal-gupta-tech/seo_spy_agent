@@ -15,9 +15,11 @@ def _sanitize_mongo_url(uri: str) -> str:
 
 def _mongo_client_kwargs(uri: str) -> dict:
     kwargs = {
-        "serverSelectionTimeoutMS": 10000,
-        "connectTimeoutMS": 10000,
-        "socketTimeoutMS": 20000,
+        "serverSelectionTimeoutMS": 30000,  # Increase to 30s for DNS resilience
+        "connectTimeoutMS": 20000,
+        "socketTimeoutMS": 30000,
+        "retryWrites": True,
+        "retryReads": True,
     }
     lower_uri = uri.lower()
     if lower_uri.startswith("mongodb+srv://") or "tls=true" in lower_uri or "ssl=true" in lower_uri:

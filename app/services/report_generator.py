@@ -35,12 +35,13 @@ def generate_pdf_report(
     try:
         from weasyprint import HTML
         HTML(string=html_content, base_url=str(PROJECT_ROOT)).write_pdf(str(pdf_path))
-        logger.info("PDF generated at %s using WeasyPrint", pdf_path)
-        return task_id
+        if pdf_path.exists() and pdf_path.stat().st_size > 0:
+            logger.info("PDF generated at %s using WeasyPrint", pdf_path)
+            return task_id
     except (ImportError, Exception) as e:
-        logger.info("WeasyPrint not available or failed (expected on Vercel): %s. Using xhtml2pdf...", str(e))
+        logger.info("WeasyPrint not available or failed: %s. Trying xhtml2pdf...", str(e))
 
-    # Try xhtml2pdf as fallback (no native dependencies)
+    # Try xhtml2pdf as fallback
     fallback_source = fallback_html_content or html_content
     try:
         from xhtml2pdf import pisa
@@ -55,7 +56,7 @@ def generate_pdf_report(
             logger.info("PDF generated at %s using xhtml2pdf fallback", pdf_path)
             return task_id
         else:
-            logger.error("xhtml2pdf failed to generate PDF: %s", pisa_status.err)
+            logger.error("xhtml2pdf failed to generate PDF or produced empty file: %s", getattr(pisa_status, 'err', 'Unknown error'))
     except Exception as e:
         logger.error("xhtml2pdf fallback failed: %s", str(e))
 

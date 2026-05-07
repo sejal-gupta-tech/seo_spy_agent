@@ -14,12 +14,12 @@ def calculate_page_authority(data: dict) -> int:
     Heuristic Page Authority estimate (0-100) based on on-page signals only.
     DO NOT present this as Moz PA or any third-party metric.
     """
-    word_count = data.get("word_count", 0)
-    internal_links = data.get("internal_links_count", 0) or len(data.get("internal_links", []))
-    external_links = data.get("external_links_count", 0) or len(data.get("external_links", []))
-    has_structured_data = data.get("has_structured_data", False)
-    has_open_graph = data.get("has_open_graph", False)
-    total_images = data.get("total_images", 0)
+    word_count = data.get("word_count") or data.get("content", {}).get("word_count", 0)
+    internal_links = data.get("internal_links_count") or len(data.get("internal_links", [])) or data.get("links", {}).get("internal_count", 0)
+    external_links = data.get("external_links_count") or len(data.get("external_links", [])) or data.get("links", {}).get("external_count", 0)
+    has_structured_data = data.get("has_structured_data") or data.get("technical_seo", {}).get("has_structured_data", False)
+    has_open_graph = data.get("has_open_graph") or data.get("technical_seo", {}).get("has_open_graph", False)
+    total_images = data.get("total_images") or data.get("page_info", {}).get("total_images", 0)
 
     score = 20  # Base
 

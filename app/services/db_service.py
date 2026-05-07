@@ -320,9 +320,18 @@ def _normalize_page_for_frontend(page: dict) -> dict:
         "is_indexable": is_indexable,
         "indexing_status": indexing_status,
         "seo_health": seo_health,
-        # Pass through any extra fields that future frontend versions may use
+        # Pass through rich data for deep audit views
         "page_info": page.get("page_info", {}),
+        "performance": page.get("performance", {}),
+        "headings": page.get("headings", {}),
+        "content": page.get("content", {}),
+        "technical_seo": page.get("technical_seo", {}),
+        "issues": page.get("issues", []),
+        "recommendations": page.get("recommendations", []),
+        "priority_action": page.get("priority_action", ""),
+        "key_issue": page.get("key_issue", ""),
         "canonical_url": page.get("page_info", {}).get("canonical") or page.get("canonical_url"),
+        "page_type": page.get("page_type", "General Page")
     }
 
 
@@ -347,6 +356,26 @@ async def get_project_audit(project_id_str: str) -> Dict[str, Any] | None:
         ai_insights = await db.ai_insights.find_one({"project_id": project_id}) or {}
         seo_data = await db.seo_data.find_one({"project_id": project_id}) or {}
         crawl_data = await db.crawl_data.find_one({"project_id": project_id}) or {}
+
+        link_analysis = crawl_data.get("link_analysis", {
+            "internal": {"internal_link_score": 0, "issues": [], "recommendations": []},
+            "external": {"total_external_links": 0, "domains": []},
+            "backlinks": {"backlink_strength": "Unknown", "estimated_backlinks": 0, "referring_domains": 0}
+        })
+
+        # Fallback: If existing records show 0 backlinks but we have pages, calculate an estimate
+        backlinks = link_analysis.get("backlinks", {})
+        if (backlinks.get("estimated_backlinks", 0) == 0) and crawl_data.get("pages"):
+            try:
+                from app.services.link_analysis import estimate_backlink_profile
+                backlink_results = estimate_backlink_profile(crawl_data.get("pages", []))
+                link_analysis["backlinks"] = {
+                    "backlink_strength": backlink_results.get("backlink_strength", "Unknown"),
+                    "estimated_backlinks": backlink_results.get("estimated_backlinks", 0),
+                    "referring_domains": backlink_results.get("referring_domains", 0)
+                }
+            except Exception as e:
+                logger.warning(f"Could not calculate backlink fallback: {e}")
 
         # Reconstruct the FinalResponse structure
         # Ensure we don't crash on missing sub-docs by providing defaults
@@ -390,11 +419,7 @@ async def get_project_audit(project_id_str: str) -> Dict[str, Any] | None:
                 "sampled_pages": [_normalize_page_for_frontend(p) for p in crawl_data.get("pages", [])]
             },
             "page_speed": crawl_data.get("page_speed", {"score": 0, "status": "N/A", "response_time": 0.0, "page_size_kb": 0.0}),
-            "link_analysis": crawl_data.get("link_analysis", {
-                "internal": {"internal_link_score": 0, "issues": [], "recommendations": []},
-                "external": {"total_external_links": 0, "domains": []},
-                "backlinks": {"backlink_strength": "Unknown", "estimated_backlinks": 0, "referring_domains": 0}
-            }),
+            "link_analysis": link_analysis,
             "content_strategy": crawl_data.get("content_strategy", {"blog_suggestions": [], "guest_post_titles": []}),
             "ai_insights": {"insights": ai_insights.get("insights", [])},
             "report_url": project.get("report_url"),

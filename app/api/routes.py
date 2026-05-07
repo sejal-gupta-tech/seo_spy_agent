@@ -98,10 +98,12 @@ async def analyze(data: URLRequest):
     try:
         result = await analyze_url(normalized_url)
         
-        # Store in MongoDB via Service Layer (Multi-collection split)
+        # Store in MongoDB via Service Layer
         if isinstance(result, dict) and "error" not in result:
             try:
-                await save_audit_report(normalized_url, data.business_type, result)
+                project_id = await save_audit_report(normalized_url, data.business_type, result)
+                result["id"] = str(project_id)
+                logger.info(f"Analysis for {normalized_url} saved with ID {project_id}")
             except Exception as db_exc:
                 logger.error("Failed to store structured audit in MongoDB: %s", db_exc)
                 

@@ -70,17 +70,18 @@ def _sitemap_status_label(crawl_data: dict) -> str:
 
 def _favicon_status_label(crawl_data: dict) -> str:
     pages = crawl_data.get("pages", [])
-    if not pages:
-        return "Missing"
-    
-    primary_page = pages[0]
-    favicon_data = primary_page.get("favicon", {})
-    if favicon_data.get("status") == "Present":
-        return "Found (HTML link tag)"
-
     favicon_resource = crawl_data.get("favicon", {})
-    if favicon_resource.get("exists") and favicon_resource.get("status_code") == 200:
-        return f"Found (/favicon.ico · {favicon_resource.get('status_code')})"
+    
+    # Priority 1: Check if the primary page has a favicon in HTML
+    if pages:
+        primary_page = pages[0]
+        favicon_data = primary_page.get("favicon", {})
+        if favicon_data.get("status") == "Present":
+            return "Found (HTML link tag)"
+
+    # Priority 2: Check if global fallback search found it
+    if favicon_resource.get("status") == "Present":
+        return f"Found (Root fallback)"
 
     return "Missing"
 
@@ -356,11 +357,20 @@ class SEOAuditPipeline:
             "market_opportunities": self.comparison_result.get("market_opportunities", []),
         }
             
-        site_favicon = self.crawl_data.get("site_favicon", {
-            "status": "Missing",
-            "url": "",
-            "source": "fallback"
-        })
+        # Prioritize HTML favicon from primary page
+        primary_favicon = self.pages[0].get("favicon", {}) if self.pages else {}
+        fallback_favicon = self.crawl_data.get("favicon", {})
+        
+        if primary_favicon.get("status") == "Present":
+            site_favicon = primary_favicon
+        elif fallback_favicon.get("status") == "Present":
+            site_favicon = fallback_favicon
+        else:
+            site_favicon = {
+                "status": "Missing",
+                "url": "",
+                "source": "none"
+            }
 
         return {
             "url": self.url,

@@ -34,8 +34,9 @@ async def stream_analysis(url: str, business_type: str = "General"):
             if "error" not in result:
                 # PERSIST TO DATABASE: This ensures the project shows up in "All Projects"
                 try:
-                    await save_audit_report(url, business_type, result)
-                    logger.info(f"Streamed analysis for {url} saved to database.")
+                    project_id = await save_audit_report(url, business_type, result)
+                    result["id"] = str(project_id)
+                    logger.info(f"Streamed analysis for {url} saved to database with ID {project_id}")
                 except Exception as db_exc:
                     logger.error(f"Failed to save streamed audit for {url}: {db_exc}")
 

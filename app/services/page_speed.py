@@ -23,7 +23,8 @@ async def get_page_speed(url: str) -> dict:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=min(4.0, HTTP_TIMEOUT_SECONDS))
         ) as client:
-            response = await client.get(
+            async with client.stream(
+                "GET",
                 url,
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
@@ -31,12 +32,22 @@ async def get_page_speed(url: str) -> dict:
                     "Accept-Encoding": "gzip, deflate, br",
                 },
                 follow_redirects=True,
-            )
-            response.raise_for_status()
-
-            response_time = round(time.perf_counter() - start_time, 3)
-            page_size_kb = round(len(response.content) / 1024, 2)
-            content_type = response.headers.get("content-type", "").split(";")[0].strip()
+            ) as response:
+                response.raise_for_status()
+                
+                body_parts = []
+                total_read = 0
+                async for chunk in response.aiter_bytes():
+                    body_parts.append(chunk)
+                    total_read += len(chunk)
+                    # Limit to 2.5MB to avoid MemoryError
+                    if total_read > 2500000:
+                        break
+                
+                content = b"".join(body_parts)
+                response_time = round(time.perf_counter() - start_time, 3)
+                page_size_kb = round(len(content) / 1024, 2)
+                content_type = response.headers.get("content-type", "").split(";")[0].strip()
 
     except Exception:
         logger.exception("Page speed probe failed for %s", url)

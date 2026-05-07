@@ -28,6 +28,9 @@ CRAWL_HEADERS = {
     "Cache-Control": "no-cache",
 }
 
+# Maximum size for HTML bodies (2.5 MB) to prevent MemoryError
+MAX_HTML_BODY_SIZE = 2500000 
+
 
 def _describe_crawl_failure(
     status_code: int | None = None,
@@ -240,7 +243,7 @@ def _analyze_page_favicon(soup: BeautifulSoup, final_url: str) -> dict:
     if best_favicon:
         return {
             "status": "Present",
-            "url": normalize_crawl_url(best_favicon["url"]),
+            "url": best_favicon["url"],
             "source": "html"
         }
 
@@ -251,9 +254,9 @@ def _analyze_page_favicon(soup: BeautifulSoup, final_url: str) -> dict:
     }
 
 
-def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
-    soup = BeautifulSoup(response.text, "lxml")
-    final_url = normalize_crawl_url(str(response.url))
+def _parse_page_from_text(html_text: str, url: str, status_code: int, depth: int, base_domain: str) -> dict:
+    soup = BeautifulSoup(html_text, "lxml")
+    final_url = normalize_crawl_url(url)
 
     title = soup.title.get_text(strip=True) if soup.title else ""
     description = _extract_meta_content(soup, "name", "description")
@@ -273,7 +276,7 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     if canonical_tag and canonical_tag.get("href"):
         canonical_href = normalize_crawl_url(urljoin(final_url, canonical_tag["href"]))
 
-    favicon_data = _analyze_page_favicon(soup, str(response.url))
+    favicon_data = _analyze_page_favicon(soup, url)
 
     images = soup.find_all("img")
     missing_alt_images = [
@@ -334,7 +337,7 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
     return {
         "url": final_url,
         "depth": depth,
-        "status_code": response.status_code,
+        "status_code": status_code,
         "title": title,
         "title_length": len(title),
         "description": description,
@@ -366,27 +369,26 @@ def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
         "page_type": _classify_page_type(final_url),
     }
 
+def _parse_page(response: httpx.Response, depth: int, base_domain: str) -> dict:
+    return _parse_page_from_text(response.text, str(response.url), response.status_code, depth, base_domain)
+
 
 async def _fetch_favicon(client: httpx.AsyncClient, target_url: str) -> dict:
     """Fallback favicon detection."""
     try:
-        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
-        content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
-        status_code = response.status_code
-
-        is_image = any(ct in content_type for ct in ("image/",))
-        is_html = "text/html" in content_type or (
-            response.text.lstrip()[:15].lower().startswith(("<!doctype", "<html"))
-        )
-
-        exists = status_code == 200 and is_image and not is_html
-        
-        if exists:
-            return {
-                "status": "Present",
-                "url": str(response.url),
-                "source": "fallback"
-            }
+        async with client.stream("GET", target_url, headers=CRAWL_HEADERS, follow_redirects=True) as response:
+            if response.status_code != 200:
+                return {"status": "Missing", "url": "", "source": "fallback"}
+                
+            content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
+            is_image = "image/" in content_type
+            
+            if is_image:
+                return {
+                    "status": "Present",
+                    "url": str(response.url),
+                    "source": "fallback"
+                }
     except Exception:
         pass
 
@@ -398,40 +400,54 @@ async def _fetch_favicon(client: httpx.AsyncClient, target_url: str) -> dict:
 
 async def _fetch_robots_txt(client: httpx.AsyncClient, target_url: str) -> dict:
     try:
-        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
-        content_type = response.headers.get("content-type", "").lower()
-        body = response.text
-        
-        final_url_path = urlparse(str(response.url)).path
-        if final_url_path == "" or final_url_path == "/":
-            status = "Invalid (Redirected to homepage)"
-            exists = False
-        elif response.status_code != 200:
-            status = "Missing"
-            exists = False
-        elif not body.strip():
-            status = "Invalid (Empty response)"
-            exists = False
-        elif "text/html" in content_type or "<html" in body.lower():
-            status = "Invalid (HTML response)"
-            exists = False
-        elif "text/plain" not in content_type:
-            status = "Invalid (Wrong Content-Type)"
-            exists = False
-        elif not any(x in body.lower() for x in ["user-agent", "disallow", "allow"]):
-            status = "Invalid (Missing directives)"
-            exists = False
-        else:
-            status = "Found (Valid)"
-            exists = True
+        async with client.stream("GET", target_url, headers=CRAWL_HEADERS, follow_redirects=True) as response:
+            content_type = response.headers.get("content-type", "").lower()
+            
+            # Read first 1MB of robots.txt max
+            body_parts = []
+            total_read = 0
+            async for chunk in response.aiter_bytes():
+                body_parts.append(chunk)
+                total_read += len(chunk)
+                if total_read > 1000000: break
+            
+            body = b"".join(body_parts).decode(response.encoding or "utf-8", errors="replace")
+            
+            final_url_path = urlparse(str(response.url)).path
+            if final_url_path == "" or final_url_path == "/":
+                status = "Invalid (Redirected to homepage)"
+                exists = False
+            elif response.status_code != 200:
+                status = "Missing"
+                exists = False
+            elif not body.strip():
+                status = "Invalid (Empty response)"
+                exists = False
+            elif "text/html" in content_type or "<html" in body.lower():
+                status = "Invalid (HTML response)"
+                exists = False
+            elif "text/plain" not in content_type and response.status_code == 200:
+                # Some sites serve robots with wrong content-type but it's still robots
+                if any(x in body.lower() for x in ["user-agent", "disallow", "allow"]):
+                    status = "Found (Valid, but wrong Content-Type)"
+                    exists = True
+                else:
+                    status = "Invalid (Wrong Content-Type)"
+                    exists = False
+            elif not any(x in body.lower() for x in ["user-agent", "disallow", "allow"]):
+                status = "Invalid (Missing directives)"
+                exists = False
+            else:
+                status = "Found (Valid)"
+                exists = True
 
-        return {
-            "url": str(response.url),
-            "status_code": response.status_code,
-            "exists": exists,
-            "status_string": status,
-            "body": body if exists else "",
-        }
+            return {
+                "url": str(response.url),
+                "status_code": response.status_code,
+                "exists": exists,
+                "status_string": status,
+                "body": body if exists else "",
+            }
     except Exception as exc:
         return {
             "url": target_url, "status_code": 0, "exists": False,
@@ -440,40 +456,49 @@ async def _fetch_robots_txt(client: httpx.AsyncClient, target_url: str) -> dict:
 
 async def _fetch_sitemap_xml(client: httpx.AsyncClient, target_url: str) -> dict:
     try:
-        response = await client.get(target_url, headers=CRAWL_HEADERS, follow_redirects=True)
-        content_type = response.headers.get("content-type", "").lower()
-        body = response.text
+        async with client.stream("GET", target_url, headers=CRAWL_HEADERS, follow_redirects=True) as response:
+            content_type = response.headers.get("content-type", "").lower()
+            
+            # Read first 2MB of sitemap max
+            body_parts = []
+            total_read = 0
+            async for chunk in response.aiter_bytes():
+                body_parts.append(chunk)
+                total_read += len(chunk)
+                if total_read > 2000000: break
+            
+            body = b"".join(body_parts).decode(response.encoding or "utf-8", errors="replace")
 
-        final_url_path = urlparse(str(response.url)).path
-        if final_url_path == "" or final_url_path == "/":
-            status = "Invalid (Redirected to homepage)"
-            exists = False
-        elif response.status_code != 200:
-            status = "Missing"
-            exists = False
-        elif not body.strip():
-            status = "Invalid (Empty response)"
-            exists = False
-        elif "text/html" in content_type or "<html" in body.lower():
-            status = "Invalid (HTML response)"
-            exists = False
-        elif "xml" not in content_type:
-            status = "Invalid (Wrong Content-Type)"
-            exists = False
-        elif "<urlset" not in body.lower() and "<sitemapindex" not in body.lower():
-            status = "Invalid (Missing XML structure)"
-            exists = False
-        else:
-            status = "Found (Valid)"
-            exists = True
+            final_url_path = urlparse(str(response.url)).path
+            if final_url_path == "" or final_url_path == "/":
+                status = "Invalid (Redirected to homepage)"
+                exists = False
+            elif response.status_code != 200:
+                status = "Missing"
+                exists = False
+            elif not body.strip():
+                status = "Invalid (Empty response)"
+                exists = False
+            elif "text/html" in content_type or "<html" in body.lower():
+                status = "Invalid (HTML response)"
+                exists = False
+            elif "xml" not in content_type and "<urlset" not in body.lower() and "<sitemapindex" not in body.lower():
+                status = "Invalid (Wrong Content-Type)"
+                exists = False
+            elif "<urlset" not in body.lower() and "<sitemapindex" not in body.lower():
+                status = "Invalid (Missing XML structure)"
+                exists = False
+            else:
+                status = "Found (Valid)"
+                exists = True
 
-        return {
-            "url": str(response.url),
-            "status_code": response.status_code,
-            "exists": exists,
-            "status_string": status,
-            "body": body if exists else "",
-        }
+            return {
+                "url": str(response.url),
+                "status_code": response.status_code,
+                "exists": exists,
+                "status_string": status,
+                "body": body if exists else "",
+            }
     except Exception as exc:
         return {
             "url": target_url, "status_code": 0, "exists": False,
@@ -590,10 +615,19 @@ async def crawl_site(
         
         semaphore = asyncio.Semaphore(5)
         
-        async def worker():
+        async def worker(worker_id: int):
+            last_heartbeat = time.time()
             while not queue.empty() or queue.qsize() > 0:
+                # Periodic heartbeat to keep the frontend updated during long crawls
+                if time.time() - last_heartbeat > 5.0:
+                    await emit_progress(progress_callback, {
+                        "type": "heartbeat", "worker": worker_id, 
+                        "visited": len(visited_urls), "queued": queue.qsize()
+                    })
+                    last_heartbeat = time.time()
+
                 try:
-                    current_url, depth = await asyncio.wait_for(queue.get(), timeout=1.0)
+                    current_url, depth = await asyncio.wait_for(queue.get(), timeout=1.5)
                 except asyncio.TimeoutError:
                     break
                 
@@ -610,37 +644,60 @@ async def crawl_site(
                             "visited_pages": len(visited_urls)
                         })
                         
-                        response = await client.get(current_url)
-                        response.raise_for_status()
-                        
-                        if "text/html" not in response.headers.get("content-type", "").lower():
-                            queue.task_done()
-                            continue
+                        # Use streaming to avoid MemoryError on large responses
+                        async with client.stream("GET", current_url, follow_redirects=True, timeout=10.0) as response:
+                            if response.status_code >= 400:
+                                await response.aread() # Drain briefly
+                                queue.task_done()
+                                continue
+
+                            content_type = response.headers.get("content-type", "").lower()
+                            if "text/html" not in content_type:
+                                queue.task_done()
+                                continue
+
+                            # Check content length if available
+                            content_length = response.headers.get("content-length")
+                            if content_length and int(content_length) > MAX_HTML_BODY_SIZE:
+                                logger.warning(f"Skipping {current_url} - Size {content_length} exceeds limit")
+                                queue.task_done()
+                                continue
+
+                            body_parts = []
+                            total_read = 0
+                            async for chunk in response.aiter_bytes():
+                                body_parts.append(chunk)
+                                total_read += len(chunk)
+                                if total_read > MAX_HTML_BODY_SIZE:
+                                    logger.warning(f"Truncating {current_url} - exceeds limit")
+                                    break
                             
-                        page_data = _parse_page(response, depth=depth, base_domain=base_domain)
-                        final_url = page_data["url"]
-                        
-                        if final_url not in page_map:
-                            page_map[final_url] = page_data
-                            pages.append(page_data)
+                            html_text = b"".join(body_parts).decode(response.encoding or "utf-8", errors="replace")
                             
-                            for link in page_data["internal_links"]:
-                                if link not in discovered_urls and depth < CRAWL_MAX_DEPTH:
-                                    discovered_urls.add(link)
-                                    await queue.put((link, depth + 1))
-                                    
-                            await emit_progress(progress_callback, {
-                                "type": "crawl_page", "url": final_url, "title": page_data.get("title", ""),
-                                "depth": depth, "status_code": page_data.get("status_code", 0),
-                                "analyzed_pages": len(pages), "discovered_internal_pages": len(discovered_urls)
-                            })
+                            page_data = _parse_page_from_text(html_text, str(response.url), response.status_code, depth, base_domain)
+                            final_url = page_data["url"]
+                            
+                            if final_url not in page_map:
+                                page_map[final_url] = page_data
+                                pages.append(page_data)
+                                
+                                for link in page_data["internal_links"]:
+                                    if link not in discovered_urls and depth < CRAWL_MAX_DEPTH:
+                                        discovered_urls.add(link)
+                                        await queue.put((link, depth + 1))
+                                        
+                                await emit_progress(progress_callback, {
+                                    "type": "crawl_page", "url": final_url, "title": page_data.get("title", ""),
+                                    "depth": depth, "status_code": page_data.get("status_code", 0),
+                                    "analyzed_pages": len(pages), "discovered_internal_pages": len(discovered_urls)
+                                })
                     except Exception as e:
                         logger.error(f"Crawl error for {current_url}: {e}")
                 
                 queue.task_done()
 
         # Run multiple workers for high-concurrency crawling
-        await asyncio.gather(*(worker() for _ in range(5)))
+        await asyncio.gather(*(worker(i) for i in range(5)))
 
         robots_data, sitemap_data, favicon_data = await asyncio.gather(robots_task, sitemap_task, favicon_task)
         broken_link_summary = await _check_sampled_internal_links(client, pages)
