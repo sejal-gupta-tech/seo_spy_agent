@@ -1,0 +1,27 @@
+fastapi
+uvicorn
+motor
+pymongo
+beautifulsoup4
+openai
+python-dotenv
+httpx
+Jinja2
+lxml
+pydantic
+pydantic-settings
+# PDF generation (Vercel friendly)
+xhtml2pdf
+reportlab
+annotated-types
+anyio
+certifi
+click
+colorama
+dnspython
+h11
+httpcore
+idna
+soupsieve
+starlette
+typing_extensions

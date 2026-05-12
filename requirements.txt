@@ -1,0 +1,29 @@
+fastapi==0.128.8
+uvicorn==0.42.0
+motor==3.7.1
+pymongo==4.17.0
+beautifulsoup4==4.13.4
+openai==2.30.0
+python-dotenv==1.2.2
+httpx==0.28.1
+Jinja2==3.1.6
+lxml==6.1.0
+pydantic==2.12.5
+pydantic-settings==2.13.1
+# PDF generation (Using versions compatible with Vercel/Serverless)
+# WeasyPrint removed due to heavy C dependencies (Cairo, Pango)
+# xhtml2pdf 0.2.9 avoids the svglib->pycairo dependency chain
+xhtml2pdf==0.2.9
+reportlab==4.3.1
+annotated-types==0.7.0
+anyio==4.13.0
+certifi==2026.2.25
+click==8.3.2
+colorama==0.4.6
+dnspython==2.8.0
+h11==0.16.0
+httpcore==1.0.9
+idna==3.11
+soupsieve==2.7
+starlette==0.40.0
+typing_extensions==4.14.1
