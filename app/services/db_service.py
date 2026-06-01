@@ -281,15 +281,38 @@ def _normalize_page_for_frontend(page: dict) -> dict:
     if word_count is None:
         word_count = page.get("content", {}).get("word_count")  # rich summary
 
-    # ── H1 count ─────────────────────────────────────────────────────────────
-    h1_count = page.get("h1_count")  # already flat?
-    if h1_count is None:
-        h1_count = page.get("headings", {}).get("h1_count")  # rich summary
-    if h1_count is None and "headings" in page:
-        # headings might store h1 as a list
-        h1_list = page.get("headings", {}).get("h1", [])
-        if isinstance(h1_list, list):
-            h1_count = len(h1_list)
+    # ── Headings logic ───────────────────────────────────────────────────────
+    headings_obj = {
+        "h1_count": 0,
+        "h1_content": "Missing H1",
+        "h2_count": 0,
+        "h3_count": 0,
+        "warnings": []
+    }
+    
+    if "h1_count" in page and page.get("h1_count") is not None:
+        headings_obj["h1_count"] = page.get("h1_count")
+        
+    raw_headings = page.get("headings", {})
+    if isinstance(raw_headings, dict):
+        if "h1" in raw_headings and isinstance(raw_headings["h1"], list):
+            headings_obj["h1_count"] = len(raw_headings["h1"])
+            if raw_headings["h1"]:
+                headings_obj["h1_content"] = raw_headings["h1"][0]
+        elif "h1_count" in raw_headings and raw_headings.get("h1_count") is not None:
+            headings_obj["h1_count"] = raw_headings.get("h1_count")
+
+        if "h2" in raw_headings and isinstance(raw_headings["h2"], list):
+            headings_obj["h2_count"] = len(raw_headings["h2"])
+        if "h3" in raw_headings and isinstance(raw_headings["h3"], list):
+            headings_obj["h3_count"] = len(raw_headings["h3"])
+            
+    if headings_obj["h1_count"] > 1:
+        headings_obj["warnings"].append("Multiple H1 tags detected")
+    elif headings_obj["h1_count"] == 0:
+        headings_obj["warnings"].append("No H1 tag detected")
+        
+    h1_count = headings_obj["h1_count"]
 
     # ── Indexable ─────────────────────────────────────────────────────────────
     is_indexable = page.get("is_indexable")  # already flat?
@@ -380,6 +403,7 @@ def _normalize_page_for_frontend(page: dict) -> dict:
         "meta_description_length": meta_len,
         "word_count": word_count,
         "h1_count": h1_count,
+        "headings": headings_obj,
         "is_indexable": is_indexable,
         "indexing_status": indexing_status,
         "seo_health": seo_health,
