@@ -52,7 +52,7 @@ def generate_blog_suggestions(scraped_data: dict, ai_keywords: dict) -> dict:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-5.5",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a strict SEO strategist that returns valid JSON only."},
                 {"role": "user", "content": prompt},
@@ -108,7 +108,7 @@ def generate_guest_post_titles(scraped_data: dict, ai_keywords: dict) -> dict:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-5.5",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a strict SEO expert that returns valid JSON only."},
                 {"role": "user", "content": prompt},

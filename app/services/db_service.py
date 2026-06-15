@@ -193,21 +193,35 @@ async def get_all_projects():
         return []
 
     cursor = db.projects.find().sort("created_at", -1)
+    projects_raw = await cursor.to_list(length=None)
+    
+    if not projects_raw:
+        return []
+
+    project_ids = [doc["_id"] for doc in projects_raw]
+    
+    audit_cursor = db.audit_results.find(
+        {"project_id": {"$in": project_ids}},
+        {"project_id": 1, "overall_seo_health": 1, "findings": 1, "metric_summary": 1}
+    )
+    audits_map = {doc["project_id"]: doc async for doc in audit_cursor}
+
+    crawl_cursor = db.crawl_data.find(
+        {"project_id": {"$in": project_ids}},
+        {"project_id": 1, "crawl_overview": 1}
+    )
+    crawls_map = {doc["project_id"]: doc async for doc in crawl_cursor}
+
     projects = []
-    async for doc in cursor:
+    for doc in projects_raw:
         project_id = doc["_id"]
         doc["id"] = str(project_id)
         del doc["_id"]
 
-        # Always fetch audit for counts + fallback score
-        audit = await db.audit_results.find_one(
-            {"project_id": project_id},
-            {"overall_seo_health": 1, "findings": 1, "metric_summary": 1}
-        )
+        audit = audits_map.get(project_id)
 
         current_score = doc.get("seo_score", 0)
         if not current_score:
-            # Try to recover score from audit_results
             if audit:
                 raw = audit.get("overall_seo_health", 0)
                 try:
@@ -216,7 +230,6 @@ async def get_all_projects():
                     recovered = 0
 
                 if not recovered:
-                    # Fall back to deriving score from metric statuses
                     recovered = _score_from_metric_summary(audit.get("metric_summary", []))
 
                 doc["seo_score"] = recovered
@@ -230,11 +243,7 @@ async def get_all_projects():
             doc["findings_count"] = 0
             doc["metrics_count"] = 0
 
-        # Enrich: pull crawl overview for page count
-        crawl = await db.crawl_data.find_one(
-            {"project_id": project_id},
-            {"crawl_overview": 1}
-        )
+        crawl = crawls_map.get(project_id)
         if crawl:
             overview = crawl.get("crawl_overview", {})
             doc["pages_analyzed"] = overview.get("analyzed_pages", 0)
@@ -301,10 +310,16 @@ def _normalize_page_for_frontend(page: dict) -> dict:
                 headings_obj["h1_content"] = raw_headings["h1"][0]
         elif "h1_count" in raw_headings and raw_headings.get("h1_count") is not None:
             headings_obj["h1_count"] = raw_headings.get("h1_count")
+            headings_obj["h1_content"] = raw_headings.get("h1_content", "Missing H1")
 
-        if "h2" in raw_headings and isinstance(raw_headings["h2"], list):
+        if "h2_count" in raw_headings:
+            headings_obj["h2_count"] = raw_headings.get("h2_count")
+        elif "h2" in raw_headings and isinstance(raw_headings["h2"], list):
             headings_obj["h2_count"] = len(raw_headings["h2"])
-        if "h3" in raw_headings and isinstance(raw_headings["h3"], list):
+
+        if "h3_count" in raw_headings:
+            headings_obj["h3_count"] = raw_headings.get("h3_count")
+        elif "h3" in raw_headings and isinstance(raw_headings["h3"], list):
             headings_obj["h3_count"] = len(raw_headings["h3"])
             
     if headings_obj["h1_count"] > 1:

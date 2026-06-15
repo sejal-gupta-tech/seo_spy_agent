@@ -56,7 +56,7 @@ def get_ai_insights(audit_data: dict) -> dict:
     
     try:
         response = client.chat.completions.create(
-            model="gpt-5.5",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a business SEO analyst producing strict JSON output exclusively."},
                 {"role": "user", "content": prompt}
