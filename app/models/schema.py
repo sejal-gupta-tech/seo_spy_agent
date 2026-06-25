@@ -350,3 +350,32 @@ class AnalysisJobStatus(BaseModel):
     latest_event: Optional[dict[str, Any]] = None
     recent_events: List[dict[str, Any]] = Field(default_factory=list)
     result: Optional[FinalResponse] = None
+
+
+# ---------------------------------------------------------------------------
+# Sitemap Builder
+# ---------------------------------------------------------------------------
+
+class SitemapBuilderRequest(BaseModel):
+    url: str
+    max_pages: int = 100
+
+
+class SitemapWarning(BaseModel):
+    severity: Literal["Critical", "Warning", "Info"]
+    message: str
+    rule: str
+
+
+class SitemapAnalysisResponse(BaseModel):
+    url: str
+    sitemap_discovery: Dict[str, Any]
+    sitemap_urls: List[str]
+    crawled_urls: List[str]
+    all_urls: List[str]
+    sitemap_xml: str
+    metrics: Dict[str, Any]
+    orphan_pages: List[str]
+    internal_link_score: Dict[str, Any]
+    warnings: List[SitemapWarning]
+    broken_urls: List[Dict[str, Any]]

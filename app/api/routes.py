@@ -16,6 +16,8 @@ from app.models.schema import (
     URLRequest,
     FixRequest,
     FixResponse,
+    SitemapBuilderRequest,
+    SitemapAnalysisResponse,
 )
 print("[routes] Importing analysis_jobs...")
 from app.services.analysis_jobs import create_analysis_job, get_analysis_job
@@ -29,6 +31,8 @@ print("[routes] Importing validators...")
 from app.utils.validators import is_valid_url, normalize_url
 print("[routes] Importing db_service...")
 from app.services.db_service import save_audit_report, get_all_projects, get_project_audit, delete_project
+print("[routes] Importing sitemap_builder...")
+from app.services.sitemap_builder import run_sitemap_analysis
 
 router = APIRouter()
 
@@ -220,3 +224,22 @@ async def remove_project(project_id: str):
     except Exception as e:
         logger.error(f"Error in remove_project: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sitemap-builder", response_model=SitemapAnalysisResponse, dependencies=[Depends(_require_api_key)])
+async def sitemap_builder(data: SitemapBuilderRequest):
+    """Run a comprehensive sitemap analysis for the given URL."""
+    logger.info("[routes.py] Sitemap builder endpoint called for URL: %s", data.url)
+    normalized_url = normalize_url(data.url)
+
+    if not is_valid_url(normalized_url):
+        logger.warning("Invalid URL received for sitemap builder: %s", data.url)
+        raise HTTPException(status_code=400, detail="Invalid URL.")
+
+    try:
+        result = await run_sitemap_analysis(normalized_url, max_pages=data.max_pages)
+        logger.info("Sitemap analysis completed for URL: %s", normalized_url)
+        return result
+    except Exception as exc:
+        logger.error("Unhandled error in /sitemap-builder: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Sitemap analysis failed: {exc}")

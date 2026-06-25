@@ -292,36 +292,24 @@ def _normalize_page_for_frontend(page: dict) -> dict:
 
     # ── Headings logic ───────────────────────────────────────────────────────
     headings_obj = {
-        "h1_count": 0,
-        "h1_content": "Missing H1",
-        "h2_count": 0,
-        "h3_count": 0,
+        "h1_count": 0, "h2_count": 0, "h3_count": 0, "h4_count": 0, "h5_count": 0, "h6_count": 0,
+        "h1": [], "h2": [], "h3": [], "h4": [], "h5": [], "h6": [],
         "warnings": []
     }
     
-    if "h1_count" in page and page.get("h1_count") is not None:
-        headings_obj["h1_count"] = page.get("h1_count")
-        
     raw_headings = page.get("headings", {})
     if isinstance(raw_headings, dict):
-        if "h1" in raw_headings and isinstance(raw_headings["h1"], list):
-            headings_obj["h1_count"] = len(raw_headings["h1"])
-            if raw_headings["h1"]:
-                headings_obj["h1_content"] = raw_headings["h1"][0]
-        elif "h1_count" in raw_headings and raw_headings.get("h1_count") is not None:
-            headings_obj["h1_count"] = raw_headings.get("h1_count")
-            headings_obj["h1_content"] = raw_headings.get("h1_content", "Missing H1")
+        for index in range(1, 7):
+            tag = f"h{index}"
+            if tag in raw_headings and isinstance(raw_headings[tag], list):
+                headings_obj[tag] = raw_headings[tag]
+                headings_obj[f"{tag}_count"] = len(raw_headings[tag])
+            elif f"{tag}_count" in raw_headings and raw_headings.get(f"{tag}_count") is not None:
+                headings_obj[f"{tag}_count"] = raw_headings.get(f"{tag}_count")
 
-        if "h2_count" in raw_headings:
-            headings_obj["h2_count"] = raw_headings.get("h2_count")
-        elif "h2" in raw_headings and isinstance(raw_headings["h2"], list):
-            headings_obj["h2_count"] = len(raw_headings["h2"])
+    # Keep h1_content for legacy compatibility
+    headings_obj["h1_content"] = headings_obj["h1"][0] if headings_obj["h1"] else raw_headings.get("h1_content", "Missing H1")
 
-        if "h3_count" in raw_headings:
-            headings_obj["h3_count"] = raw_headings.get("h3_count")
-        elif "h3" in raw_headings and isinstance(raw_headings["h3"], list):
-            headings_obj["h3_count"] = len(raw_headings["h3"])
-            
     if headings_obj["h1_count"] > 1:
         headings_obj["warnings"].append("Multiple H1 tags detected")
     elif headings_obj["h1_count"] == 0:
@@ -350,67 +338,141 @@ def _normalize_page_for_frontend(page: dict) -> dict:
         indexing_status = "Indexable" if is_indexable else "Noindex"
 
     # ── Page-specific issues ──────────────────────────────────────────────────
+    structured_issues = []
+    
+    # Title length check
+    title = page.get("page_info", {}).get("title") or page.get("title", "")
+    if not title or title == "N/A":
+        structured_issues.append({
+            "title": "Missing Page Title",
+            "severity": "High",
+            "why_it_matters": "Search engines use H1 tags to understand the primary topic of a page. Users rely on them for visual hierarchy.",
+            "recommended_fix": "Add exactly one descriptive H1 tag containing the main target keyword near the top of the page.",
+            "seo_impact": "Improves content relevance, keyword targeting, and search engine understanding."
+        })
+        # Note: Fixing copy to match Title tag
+        structured_issues[-1] = {
+            "title": "Missing Page Title",
+            "severity": "High",
+            "why_it_matters": "The page title is the most important on-page SEO element. Without it, search engines struggle to understand what the page is about.",
+            "recommended_fix": "Add a descriptive, keyword-optimized <title> tag between 15-60 characters.",
+            "seo_impact": "Massively improves search visibility and click-through rates."
+        }
+    elif len(title) < 15:
+        structured_issues.append({
+            "title": "Title Too Short",
+            "severity": "Medium",
+            "why_it_matters": "A very short title fails to fully describe the page and misses opportunities to target secondary keywords.",
+            "recommended_fix": "Expand the title tag to 40-60 characters by adding relevant descriptive words or brand name.",
+            "seo_impact": "Helps capture more long-tail search traffic."
+        })
+    elif len(title) > 60:
+        structured_issues.append({
+            "title": "Title Too Long",
+            "severity": "Low",
+            "why_it_matters": "Titles over 60 characters get cut off (truncated) in Google search results, reducing click-through rates.",
+            "recommended_fix": "Shorten the title to under 60 characters, keeping the most important keywords near the beginning.",
+            "seo_impact": "Improves readability and click-through rate in search results."
+        })
+    
+    # Meta description check
+    meta = page.get("page_info", {}).get("meta_description") or page.get("description", "")
+    if not meta or meta == "Not Found":
+        structured_issues.append({
+            "title": "Missing Meta Description",
+            "severity": "High",
+            "why_it_matters": "Meta descriptions are your sales pitch in the search results. Without one, Google will pick random text from the page.",
+            "recommended_fix": "Write a compelling meta description summarizing the page content (between 120-160 characters).",
+            "seo_impact": "Directly improves organic click-through rates (CTR)."
+        })
+    elif len(meta) < 50:
+        structured_issues.append({
+            "title": "Meta Description Too Short",
+            "severity": "Medium",
+            "why_it_matters": "Short descriptions don't give users enough compelling reasons to click your link instead of a competitor's.",
+            "recommended_fix": "Expand the meta description to include a clear call-to-action and more details (aim for 120-160 chars).",
+            "seo_impact": "Increases search result real estate and click likelihood."
+        })
+    elif len(meta) > 160:
+        structured_issues.append({
+            "title": "Meta Description Too Long",
+            "severity": "Low",
+            "why_it_matters": "Long descriptions get truncated in search results, potentially cutting off your main call-to-action.",
+            "recommended_fix": "Keep the description under 160 characters to ensure the whole message is visible.",
+            "seo_impact": "Improves messaging clarity in search results."
+        })
+    
+    # H1 check
+    h1_c = h1_count if h1_count is not None else 0
+    if h1_c == 0:
+        structured_issues.append({
+            "title": "Missing H1 Tag",
+            "severity": "High",
+            "why_it_matters": "Search engines use H1 tags to understand the primary topic of a page.",
+            "recommended_fix": "Add exactly one descriptive H1 tag containing the main target keyword near the top of the page.",
+            "seo_impact": "Improves content relevance, keyword targeting, and search engine understanding."
+        })
+    elif h1_c > 1:
+        structured_issues.append({
+            "title": f"Multiple H1 Tags ({h1_c})",
+            "severity": "Medium",
+            "why_it_matters": "Using multiple H1s can confuse search engines about the primary topic of the page.",
+            "recommended_fix": "Keep exactly one H1 tag per page. Change the other H1s to H2s or H3s.",
+            "seo_impact": "Clarifies topical focus for better rankings."
+        })
+    
+    # Word count check
+    wc = word_count if word_count is not None else 0
+    if wc < 100:
+        structured_issues.append({
+            "title": f"Low Word Count ({wc} words)",
+            "severity": "Medium",
+            "why_it_matters": "Pages with very little content often struggle to rank because search engines have insufficient information about the topic.",
+            "recommended_fix": "Increase the word count to at least 300+ words by adding more valuable, detailed information for users.",
+            "seo_impact": "Boosts topical authority and chances to rank for related long-tail keywords."
+        })
+    
+    # Indexing status check
+    if not is_indexable:
+        structured_issues.append({
+            "title": "Page is Blocked from Indexing",
+            "severity": "High",
+            "why_it_matters": "This page has a 'noindex' tag, meaning search engines will intentionally ignore it.",
+            "recommended_fix": "If this page SHOULD be in Google, remove the 'noindex' directive from the meta robots tag or headers.",
+            "seo_impact": "Required for the page to receive any organic traffic."
+        })
+
+    # Parse incoming string issues from the backend
     page_issues = page.get("issues", {})
+    issues_list = []
     if isinstance(page_issues, dict):
-        # already in structured format
         issues_list = page_issues.get("critical", []) + page_issues.get("high", []) + page_issues.get("medium", []) + page_issues.get("low", [])
     elif isinstance(page_issues, list):
         issues_list = page_issues
-    else:
-        issues_list = []
 
-    # Generate issues if empty
-    if not issues_list:
-        generated_issues = []
-        
-        # Title length check
-        title = page.get("page_info", {}).get("title") or page.get("title", "")
-        if not title or title == "N/A":
-            generated_issues.append("Missing page title")
-        elif len(title) < 15:
-            generated_issues.append("Title too short (under 15 characters)")
-        elif len(title) > 60:
-            generated_issues.append("Title too long (over 60 characters)")
-        
-        # Meta description check
-        meta = page.get("page_info", {}).get("meta_description") or page.get("description", "")
-        if not meta or meta == "Not Found":
-            generated_issues.append("Missing meta description")
-        elif len(meta) < 50:
-            generated_issues.append("Meta description too short (under 50 characters)")
-        elif len(meta) > 160:
-            generated_issues.append("Meta description too long (over 160 characters)")
-        
-        # H1 check
-        h1_c = h1_count if h1_count is not None else 0
-        if h1_c == 0:
-            generated_issues.append("Missing H1 tag")
-        elif h1_c > 1:
-            generated_issues.append(f"Multiple H1 tags found ({h1_c})")
-        
-        # Word count check
-        wc = word_count if word_count is not None else 0
-        if wc < 100:
-            generated_issues.append("Low word count (under 100 words)")
-        
-        # Indexing status check
-        if not is_indexable:
-            generated_issues.append("Page is marked as non-indexable (noindex)")
-        
-        issues_list = generated_issues
+    for raw_iss in issues_list:
+        if isinstance(raw_iss, dict) and "title" in raw_iss:
+            structured_issues.append(raw_iss)
+        elif isinstance(raw_iss, str) and raw_iss:
+            lower_iss = raw_iss.lower()
+            if not any(k in lower_iss for k in ["title", "meta", "h1", "word count", "noindex"]):
+                structured_issues.append({
+                    "title": raw_iss,
+                    "severity": "Medium",
+                    "why_it_matters": "This issue was detected during the page audit and may affect SEO performance.",
+                    "recommended_fix": "Review the specific finding and apply standard SEO best practices to resolve it.",
+                    "seo_impact": "Fixing this improves overall page health and compliance."
+                })
 
     # ── Recommendations ──────────────────────────────────────────────────────
-    recommendations = page.get("recommendations", [])
-    if not recommendations:
-        recommendations = []
-        if any("title" in issue.lower() for issue in issues_list):
-            recommendations.append("Optimize page title to be between 15-60 characters with primary keyword")
-        if any("meta" in issue.lower() for issue in issues_list):
-            recommendations.append("Add unique meta description between 50-160 characters")
-        if any("h1" in issue.lower() for issue in issues_list):
-            recommendations.append("Ensure page has exactly one H1 tag with relevant content")
-        if any("word" in issue.lower() for issue in issues_list):
-            recommendations.append("Expand page content to at least 300 words for better SEO value")
+    structured_recs = []
+    for issue in structured_issues:
+        structured_recs.append({
+            "priority": issue["severity"],
+            "issue": issue["title"],
+            "recommendation": issue["recommended_fix"],
+            "benefit": issue["seo_impact"]
+        })
 
     return {
         "url": url,
@@ -423,11 +485,15 @@ def _normalize_page_for_frontend(page: dict) -> dict:
         "indexing_status": indexing_status,
         "seo_health": seo_health,
         # Pass through issues and recommendations
-        "issues": issues_list,
-        "recommendations": recommendations,
+        "issues": structured_issues,
+        "recommendations": structured_recs,
         # Pass through any extra fields that future frontend versions may use
         "page_info": page.get("page_info", {}),
         "canonical_url": page.get("page_info", {}).get("canonical") or page.get("canonical_url"),
+        # Ensure deep tabs like Performance and Technical SEO get their data
+        "performance": page.get("performance", {}),
+        "technical_seo": page.get("technical_seo", {}),
+        "content": page.get("content", {})
     }
 
 
