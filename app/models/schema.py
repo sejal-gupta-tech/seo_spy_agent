@@ -379,3 +379,64 @@ class SitemapAnalysisResponse(BaseModel):
     internal_link_score: Dict[str, Any]
     warnings: List[SitemapWarning]
     broken_urls: List[Dict[str, Any]]
+
+# ---------------------------------------------------------------------------
+# Local SEO & Google Business Profile (GBP)
+# ---------------------------------------------------------------------------
+
+class PublicLocalAuditRequest(BaseModel):
+    url: str
+    business_name: Optional[str] = None
+    target_city: Optional[str] = None
+    target_country: Optional[str] = None
+    primary_keyword: Optional[str] = None
+
+class LocalLocation(BaseModel):
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+class LocalScores(BaseModel):
+    local_seo_score: float = 0
+    nap_score: float = 0
+    schema_score: float = 0
+    location_page_score: float = 0
+    local_onpage_score: float = 0
+    local_technical_score: float = 0
+
+class LocalSeoAuditResponse(BaseModel):
+    audit_id: str
+    mode: str = "public_local"
+    website: str
+    business_name: Optional[str] = None
+    target_location: LocalLocation
+    scores: LocalScores
+    nap_analysis: Dict[str, Any] = Field(default_factory=dict)
+    schema_analysis: Dict[str, Any] = Field(default_factory=dict)
+    contact_page_analysis: Dict[str, Any] = Field(default_factory=dict)
+    location_pages: List[Dict[str, Any]] = Field(default_factory=list)
+    local_signals: Dict[str, Any] = Field(default_factory=dict)
+    issues: List[Dict[str, Any]] = Field(default_factory=list)
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list)
+
+class GBPConnection(BaseModel):
+    user_id: str
+    provider: str = "google"
+    account_reference: Optional[str] = None
+    selected_location_reference: Optional[str] = None
+    scopes: List[str] = Field(default_factory=list)
+    connected_at: str
+    updated_at: str
+    status: str
+
+class GBPAuditResponse(BaseModel):
+    audit_id: str
+    user_id: str
+    website_url: Optional[str] = None
+    mode: str = "connected_gbp"
+    selected_location_reference: Optional[str] = None
+    scores: Dict[str, float] = Field(default_factory=dict)
+    issues: List[Dict[str, Any]] = Field(default_factory=list)
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list)
+    consistency_score: Optional[float] = None
+    created_at: str
+

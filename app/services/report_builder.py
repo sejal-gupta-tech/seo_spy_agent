@@ -1,6 +1,7 @@
+from collections import Counter
 from datetime import date
 
-from app.core.config import DEFAULT_COMPANY_NAME, DEFAULT_REPORT_AUDIENCE
+from app.core.config import DEFAULT_COMPANY_NAME, DEFAULT_REPORT_AUDIENCE, SEO_BENCHMARKS
 
 
 def _safe_company_name(site_profile: dict) -> str:
@@ -243,6 +244,117 @@ def build_detailed_appendix(
     }
 
 
+def build_pagewise_metadata_inventory(sampled_pages: list[dict]) -> dict:
+    """Build a complete page-wise title & meta description inventory
+    from the already-crawled sampled_pages data.
+
+    Returns a dict with 'summary' stats and 'rows' for the PDF table.
+    """
+    title_bench = SEO_BENCHMARKS["title_length"]
+    meta_bench = SEO_BENCHMARKS["meta_description_length"]
+
+    # ── Collect raw values for duplicate detection ────────────────────────
+    all_titles: list[str] = []
+    all_metas: list[str] = []
+    for page in sampled_pages:
+        info = page.get("page_info", {})
+        t = (info.get("title") or page.get("title", "") or "").strip()
+        m = (info.get("meta_description") or page.get("meta_description", "") or "").strip()
+        all_titles.append(t)
+        all_metas.append(m)
+
+    title_counts = Counter(t for t in all_titles if t and t != "N/A")
+    meta_counts = Counter(m for m in all_metas if m and m != "Not Found")
+    dup_titles = {v for v, c in title_counts.items() if c > 1}
+    dup_metas = {v for v, c in meta_counts.items() if c > 1}
+
+    # ── Build rows + accumulators ────────────────────────────────────────
+    rows: list[dict] = []
+    missing_titles = 0
+    missing_metas = 0
+    short_titles = 0
+    long_titles = 0
+    short_metas = 0
+    long_metas = 0
+    dup_title_pages = 0
+    dup_meta_pages = 0
+
+    for idx, page in enumerate(sampled_pages, 1):
+        info = page.get("page_info", {})
+        url = page.get("url", "")
+        title = (info.get("title") or page.get("title", "") or "").strip()
+        meta = (info.get("meta_description") or page.get("meta_description", "") or "").strip()
+
+        # Normalise missing sentinels
+        title_display = title if (title and title != "N/A") else "Not Found"
+        meta_display = meta if (meta and meta != "Not Found") else "Not Found"
+
+        title_len = len(title) if title_display != "Not Found" else 0
+        meta_len = len(meta) if meta_display != "Not Found" else 0
+
+        # ── Status logic ─────────────────────────────────────────────────
+        issues: list[str] = []
+
+        # Title status
+        if title_display == "Not Found":
+            issues.append("Missing Title")
+            missing_titles += 1
+        elif title_len < title_bench["min"]:
+            issues.append("Title Too Short")
+            short_titles += 1
+        elif title_len > title_bench["max"]:
+            issues.append("Title Too Long")
+            long_titles += 1
+
+        # Meta status
+        if meta_display == "Not Found":
+            issues.append("Missing Meta Description")
+            missing_metas += 1
+        elif meta_len < meta_bench["min"]:
+            issues.append("Meta Too Short")
+            short_metas += 1
+        elif meta_len > meta_bench["max"]:
+            issues.append("Meta Too Long")
+            long_metas += 1
+
+        # Duplicate detection
+        if title_display != "Not Found" and title in dup_titles:
+            issues.append("Duplicate Title")
+            dup_title_pages += 1
+        if meta_display != "Not Found" and meta in dup_metas:
+            issues.append("Duplicate Meta Description")
+            dup_meta_pages += 1
+
+        status = ", ".join(issues) if issues else "Good"
+
+        rows.append({
+            "s_no": idx,
+            "url": url,
+            "title": title_display,
+            "title_length": title_len,
+            "meta_description": meta_display,
+            "meta_desc_length": meta_len,
+            "status": status,
+            "has_issue": bool(issues),
+        })
+
+    total = len(sampled_pages)
+    return {
+        "summary": {
+            "total_pages": total,
+            "missing_titles": missing_titles,
+            "missing_metas": missing_metas,
+            "duplicate_titles": dup_title_pages,
+            "duplicate_metas": dup_meta_pages,
+            "short_titles": short_titles,
+            "long_titles": long_titles,
+            "short_metas": short_metas,
+            "long_metas": long_metas,
+        },
+        "rows": rows,
+    }
+
+
 def build_pdf_template_data(
     url: str,
     executive_summary: str,
@@ -344,6 +456,9 @@ def build_pdf_template_data(
         "link_analysis": link_analysis,
         "ai_insights": ai_insights.get("insights", []),
         "sampled_pages": audit_result.get("page_summaries", []),
+        "pagewise_metadata": build_pagewise_metadata_inventory(
+            audit_result.get("page_summaries", [])
+        ),
         "competitor_sample_size": comparison_result.get("competitor_sample_size")
         or len(comparison_result.get("top_competitors", [])),
         "keyword_overlap_score": comparison_result.get("keyword_overlap_score", "0%"),

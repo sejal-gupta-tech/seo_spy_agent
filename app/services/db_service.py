@@ -610,3 +610,51 @@ async def delete_project(project_id_str: str) -> bool:
         logger.error(f"Error deleting project {project_id_str}: {e}\n{traceback.format_exc()}")
         return False
 
+
+async def save_gbp_snapshot(user_id: str, location_reference: str, combined_score: float, metrics: dict):
+    """
+    Saves a historical snapshot of GBP performance and local SEO health.
+    """
+    db = db_manager.database
+    if db is None:
+        return None
+        
+    snapshot = {
+        "user_id": user_id,
+        "location_reference": location_reference,
+        "combined_score": combined_score,
+        "metrics": metrics,
+        "timestamp": datetime.now(timezone.utc)
+    }
+    
+    try:
+        result = await db.gbp_audit_snapshots.insert_one(snapshot)
+        logger.info(f"Saved GBP snapshot for {location_reference}")
+        return str(result.inserted_id)
+    except Exception as e:
+        logger.error(f"Error saving GBP snapshot: {e}")
+        return None
+
+
+async def get_gbp_snapshots(user_id: str, location_reference: str, limit: int = 12):
+    """
+    Retrieves historical snapshots for charting GBP performance over time.
+    """
+    db = db_manager.database
+    if db is None:
+        return []
+        
+    try:
+        cursor = db.gbp_audit_snapshots.find(
+            {"user_id": user_id, "location_reference": location_reference}
+        ).sort("timestamp", -1).limit(limit)
+        
+        snapshots = await cursor.to_list(length=limit)
+        # Convert ObjectIds to strings
+        for s in snapshots:
+            s["_id"] = str(s["_id"])
+        
+        return snapshots
+    except Exception as e:
+        logger.error(f"Error fetching GBP snapshots: {e}")
+        return []

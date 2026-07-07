@@ -18,6 +18,8 @@ print("[main] Loading dotenv...")
 load_dotenv()
 print("[main] Importing router...")
 from app.api.routes import router  # noqa: E402 — must come after load_dotenv()
+print("[main] Importing gbp_router...")
+from app.api.gbp_routes import gbp_router # noqa: E402
 print("[main] Importing db_manager...")
 from app.core.database import db_manager # noqa: E402
 
@@ -84,3 +86,4 @@ async def root():
 
 
 app.include_router(router)
+app.include_router(gbp_router)

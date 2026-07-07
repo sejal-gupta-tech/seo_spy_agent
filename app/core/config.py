@@ -50,6 +50,11 @@ API_KEY: str = os.getenv("SEO_SPY_API_KEY", "").strip()
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "seo_spy_agent")
 
+# Google OAuth / GBP settings
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+
 SEO_BENCHMARK_YEAR = 2026
 
 DEFAULT_COMPANY_NAME = "This Website"
