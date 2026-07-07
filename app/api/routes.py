@@ -210,6 +210,23 @@ async def get_project(project_id: str):
     return result
 
 
+from app.services.export_jobs import create_performance_export_job, get_export_job
+
+@router.post("/projects/{project_id}/performance-export", dependencies=[Depends(_require_api_key)])
+async def start_performance_export(project_id: str):
+    logger.info(f"Starting performance export for {project_id}")
+    job = await create_performance_export_job(project_id)
+    return job
+
+@router.get("/projects/performance-export/{job_id}", dependencies=[Depends(_require_api_key)])
+async def read_performance_export_job(job_id: str):
+    job = await get_export_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Export job not found")
+    return job
+
+
+
 @router.delete("/projects/{project_id}", dependencies=[Depends(_require_api_key)])
 async def remove_project(project_id: str):
     logger.info("[routes.py] Delete project endpoint called for project_id: %s", project_id)

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>All Pages Performance Report</title>
+    <style>
+        /* Base Setup */
+        @page {
+            size: A4 portrait;
+            margin: 20mm;
+        }
+
+        @page landscape_page {
+            size: A4 landscape;
+            margin: 15mm;
+        }
+
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            color: #334155;
+            line-height: 1.5;
+            font-size: 11px;
+            background: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Typography */
+        h1, h2, h3, h4 {
+            color: #0f172a;
+            margin-top: 0;
+            font-weight: 700;
+        }
+        h1 { font-size: 24px; letter-spacing: -0.02em; margin-bottom: 24px; }
+        h2 { font-size: 18px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px; margin-top: 32px; }
+        h3 { font-size: 14px; margin-bottom: 12px; }
+
+        /* Helpers */
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+
+        /* Cover Page */
+        .cover {
+            text-align: center;
+            padding-top: 150px;
+        }
+        .cover h1 {
+            font-size: 36px;
+            color: #4f46e5;
+            margin-bottom: 10px;
+        }
+        .cover p {
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .metrics-grid {
+            margin-top: 50px;
+            width: 100%;
+        }
+        .metric-box {
+            padding: 15px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: 900;
+            color: #4f46e5;
+        }
+        .metric-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.1em;
+            margin-top: 5px;
+        }
+
+        /* Table */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            border-spacing: 0;
+            table-layout: fixed;
+            margin-top: 20px;
+        }
+        .table thead {
+            display: table-header-group;
+        }
+        .table th, .table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            vertical-align: top;
+        }
+        .table th {
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #64748b;
+            background: #f1f5f9;
+        }
+        
+        /* Status Colors */
+        .status-good { color: #10b981; font-weight: bold; }
+        .status-warn { color: #f59e0b; font-weight: bold; }
+        .status-poor { color: #ef4444; font-weight: bold; }
+        .status-na { color: #94a3b8; font-weight: bold; }
+
+        /* Issues List */
+        .issue-card {
+            background: #fff1f2;
+            border: 1px solid #ffe4e6;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #e11d48;
+        }
+        .issue-title {
+            font-weight: bold;
+            color: #9f1239;
+            margin-bottom: 4px;
+        }
+        .issue-desc {
+            color: #be123c;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cover Page -->
+    <div class="cover">
+        <h1>ALL PAGES PERFORMANCE REPORT</h1>
+        <p style="font-size: 18px; font-weight: bold;">{{ domain }}</p>
+        <p>Generated: {{ generated_date }}</p>
+        
+        <table class="metrics-grid">
+            <tr>
+                <td>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ summary.total_crawled }}</div>
+                        <div class="metric-label">Total Crawled Pages</div>
+                    </div>
+                </td>
+                <td>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ summary.total_with_performance }}</div>
+                        <div class="metric-label">Pages w/ Performance Data</div>
+                    </div>
+                </td>
+                <td>
+                    <div class="metric-box" style="border-color: #ef4444;">
+                        <div class="metric-value" style="color: #ef4444;">{{ summary.missing_data }}</div>
+                        <div class="metric-label">Missing Data</div>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ summary.mobile_avg }}</div>
+                        <div class="metric-label">Mobile Average Score</div>
+                    </div>
+                </td>
+                <td>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ summary.desktop_avg }}</div>
+                        <div class="metric-label">Desktop Average Score</div>
+                    </div>
+                </td>
+                <td></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Landscape Table Section -->
+    <pdf:nexttemplate name="landscape_page" />
+    <pdf:nextpage />
+
+    <h2>Executive Summary Table</h2>
+    <table class="table" style="font-size: 9px;">
+        <thead repeat="1">
+            <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 25%;">Page URL</th>
+                <th style="width: 8%;">Status</th>
+                <th style="width: 8%;">Mob Score</th>
+                <th style="width: 8%;">Desk Score</th>
+                <th style="width: 10%;">Mob Load</th>
+                <th style="width: 10%;">Desk Load</th>
+                <th style="width: 8%;">Mob LCP</th>
+                <th style="width: 8%;">Desk LCP</th>
+                <th style="width: 10%;">Issues</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for page in pages %}
+            {% set perf = page.performance %}
+            {% set mob = perf.mobile | default({}) %}
+            {% set desk = perf.desktop | default({}) %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ page.url }}</td>
+                <td>{{ page.indexing_status | default('Indexable') }}</td>
+                <td>
+                    {% if mob.score %}
+                        <span class="{% if mob.score >= 90 %}status-good{% elif mob.score >= 50 %}status-warn{% else %}status-poor{% endif %}">{{ mob.score }}</span>
+                    {% else %}
+                        <span class="status-na">N/A</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if desk.score %}
+                        <span class="{% if desk.score >= 90 %}status-good{% elif desk.score >= 50 %}status-warn{% else %}status-poor{% endif %}">{{ desk.score }}</span>
+                    {% else %}
+                        <span class="status-na">N/A</span>
+                    {% endif %}
+                </td>
+                <td>{{ mob.load_time | default('N/A') }}</td>
+                <td>{{ desk.load_time | default('N/A') }}</td>
+                <td>{{ mob.core_web_vitals.lcp | default('N/A') if mob.core_web_vitals else 'N/A' }}</td>
+                <td>{{ desk.core_web_vitals.lcp | default('N/A') if desk.core_web_vitals else 'N/A' }}</td>
+                <td>
+                    {% if perf.issues %}
+                        <span class="status-poor">{{ perf.issues | length }} Detected</span>
+                    {% else %}
+                        <span class="status-good">None</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Return to Portrait for Page Details -->
+    <pdf:nexttemplate name="portrait_page" />
+
+    {% for page in pages %}
+    <div class="page-break">
+        <h2>PAGE {{ loop.index }} — {{ page.url }}</h2>
+        
+        {% set perf = page.performance %}
+        {% set mob = perf.mobile | default({}) %}
+        {% set desk = perf.desktop | default({}) %}
+        
+        <table style="width: 100%; margin-bottom: 20px;">
+            <tr>
+                <td style="width: 50%; padding-right: 15px; vertical-align: top;">
+                    <h3>MOBILE PERFORMANCE</h3>
+                    {% if mob.score %}
+                        <p><strong>Performance Score:</strong> <span class="{% if mob.score >= 90 %}status-good{% elif mob.score >= 50 %}status-warn{% else %}status-poor{% endif %}">{{ mob.score }}/100</span></p>
+                        <p><strong>Status:</strong> {{ mob.status }}</p>
+                        <p><strong>Load Time:</strong> {{ mob.load_time }}</p>
+                        
+                        {% if mob.core_web_vitals %}
+                        <div style="background: #f8fafc; padding: 10px; margin-top: 10px; border-radius: 4px;">
+                            <strong>Core Web Vitals:</strong><br>
+                            LCP: {{ mob.core_web_vitals.lcp | default('N/A') }}<br>
+                            CLS: {{ mob.core_web_vitals.cls | default('N/A') }}<br>
+                            INP / FID: {{ mob.core_web_vitals.fid | default('N/A') }}
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="status-na">Data Unavailable</p>
+                    {% endif %}
+                </td>
+                
+                <td style="width: 50%; padding-left: 15px; border-left: 1px solid #e2e8f0; vertical-align: top;">
+                    <h3>DESKTOP PERFORMANCE</h3>
+                    {% if desk.score %}
+                        <p><strong>Performance Score:</strong> <span class="{% if desk.score >= 90 %}status-good{% elif desk.score >= 50 %}status-warn{% else %}status-poor{% endif %}">{{ desk.score }}/100</span></p>
+                        <p><strong>Status:</strong> {{ desk.status }}</p>
+                        <p><strong>Load Time:</strong> {{ desk.load_time }}</p>
+                        
+                        {% if desk.core_web_vitals %}
+                        <div style="background: #f8fafc; padding: 10px; margin-top: 10px; border-radius: 4px;">
+                            <strong>Core Web Vitals:</strong><br>
+                            LCP: {{ desk.core_web_vitals.lcp | default('N/A') }}<br>
+                            CLS: {{ desk.core_web_vitals.cls | default('N/A') }}<br>
+                            INP / FID: {{ desk.core_web_vitals.fid | default('N/A') }}
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="status-na">Data Unavailable</p>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+
+        <h3>PERFORMANCE OPTIMIZATION ISSUES</h3>
+        {% if perf.issues and perf.issues|length > 0 %}
+            {% for issue in perf.issues %}
+            <div class="issue-card">
+                <div class="issue-title">Issue {{ loop.index }}: {{ issue.title | default(issue) if issue is string else (issue.issue | default('Optimization Issue')) }}</div>
+                {% if issue is not string %}
+                <div class="issue-desc">
+                    {{ issue.explanation | default('') }}
+                    {% if issue.recommendation %}
+                    <br><br><strong>Fix:</strong> {{ issue.recommendation }}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="status-good">No critical performance issues detected on this page.</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+</body>
+</html>
